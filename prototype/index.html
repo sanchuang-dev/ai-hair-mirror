@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 美发魔镜 · 镜面原型与方案说明</title>
+<style>
+:root{
+  /* 沙龙轻奢：深色镜面 + 暖金 + 高显色质感 */
+  --bg:#100C09;
+  --surface:#1E1712;
+  --gold:#D9B166;
+  --brand:#C79A46;
+  --brand-2:#EBD9AC;
+  --copper:#B96A3C;
+  --neutral:#8E8E8E;
+  --ink:#F4EBDC;
+  --ink-2:rgba(244,235,220,.72);
+  --ink-3:rgba(244,235,220,.42);
+  --line:rgba(217,177,102,.20);
+  --line-2:rgba(244,235,220,.10);
+  --track:rgba(244,235,220,.13);
+  --band:linear-gradient(135deg,#F7E9C2,#D9B166 42%,#B4842F);
+  --font:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-xs:18px;--f-sm:21px;--f-md:24px;--f-lg:30px;--f-xl:42px;--f-2xl:58px;--f-3xl:92px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(1000px 700px at 8% -10%, rgba(217,177,102,.16), transparent 62%),
+    radial-gradient(900px 640px at 96% 6%, rgba(185,106,60,.13), transparent 64%),
+    radial-gradient(900px 700px at 50% 118%, rgba(217,177,102,.07), transparent 66%),
+    linear-gradient(180deg,#161009,#0C0907);}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.34;
+  background-image:linear-gradient(rgba(244,235,220,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(244,235,220,.045) 1px,transparent 1px);
+  background-size:78px 78px;mask-image:radial-gradient(circle at 46% 34%,#000 4%,transparent 70%);}
+/* ============ top bar ============ */
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:14px 26px;background:rgba(18,13,9,.82);backdrop-filter:blur(18px);border-bottom:1px solid var(--line-2);}
+.brand{display:flex;align-items:center;gap:11px}
+.brand .mark{width:30px;height:30px;border-radius:9px;background:conic-gradient(from 210deg,var(--gold),#F7E9C2,var(--copper),var(--brand));box-shadow:0 6px 18px rgba(217,177,102,.34);position:relative}
+.brand .mark::after{content:"";position:absolute;inset:6px;border-radius:5px;background:#14100B}
+.brand h1{font-size:15px;font-weight:700;letter-spacing:.04em}
+.brand small{display:block;font-size:10.5px;color:var(--ink-3);font-weight:400;letter-spacing:.14em;margin-top:2px}
+.seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:rgba(244,235,220,.06);border:1px solid var(--line);margin-left:auto}
+.seg button{font-family:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;background:transparent;border:0;padding:8px 15px;border-radius:9px;transition:.2s}
+.seg button.on{background:linear-gradient(135deg,#E3C77E,var(--brand));color:#1A130E;font-weight:700;box-shadow:0 4px 14px rgba(180,132,47,.32)}
+.chipbtn{font-family:inherit;font-size:12px;color:var(--ink-2);cursor:pointer;background:rgba(244,235,220,.06);border:1px solid var(--line);padding:7px 13px;border-radius:20px;transition:.2s}
+.chipbtn:hover{color:var(--ink);border-color:rgba(217,177,102,.55)}
+.chipbtn.on{color:#1A130E;font-weight:700;background:linear-gradient(135deg,#E3C77E,var(--brand));border-color:transparent}
+/* ============ layout ============ */
+.view{display:none;position:relative;z-index:2}
+.view.on{display:block}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:34px;align-items:start;max-width:1480px;margin:0 auto;padding:34px 26px 90px}
+@media(max-width:1180px){.stage{grid-template-columns:minmax(0,1fr)}}
+.mirror-slot{display:flex;justify-content:center;align-items:flex-start;min-height:240px}
+.slot-inner{display:flex;justify-content:center}
+/* ============ mirror unit · 独立壁挂 ============ */
+.device{width:936px;transform-origin:top center;position:relative;filter:drop-shadow(0 40px 70px rgba(0,0,0,.62))}
+.device::before{content:"";position:absolute;left:-44px;right:-44px;top:-58px;bottom:-66px;border-radius:16px;z-index:0;
+  background:
+    radial-gradient(560px 400px at 50% 6%, rgba(255,226,172,.16), transparent 64%),
+    radial-gradient(880px 700px at 50% 42%, rgba(64,47,30,.5), transparent 72%),
+    linear-gradient(180deg,#2B2016,#1A130E 42%,#120D09);
+  border:1px solid rgba(244,235,220,.05);box-shadow:inset 0 0 140px rgba(0,0,0,.66)}
+.walllabel{position:absolute;left:0;right:0;bottom:-52px;text-align:center;font-size:13px;letter-spacing:.22em;color:rgba(217,177,102,.62);z-index:0}
+.frame{position:relative;z-index:1;width:100%;border-radius:16px;padding:18px;
+  background:linear-gradient(155deg,#3A2E22,#241B14 26%,#15100B 58%,#33271C);
+  box-shadow:0 0 0 1px rgba(244,235,220,.10) inset,0 0 0 1px rgba(0,0,0,.6),0 30px 70px rgba(0,0,0,.55),inset 0 0 70px rgba(0,0,0,.5)}
+.band{position:absolute;inset:6px;border-radius:12px;pointer-events:none;background:var(--band);opacity:.42;filter:blur(16px);transition:opacity .5s,background .5s}
+.device.lamp .band{opacity:.95;filter:blur(26px)}
+.glass{position:relative;width:900px;height:1600px;border-radius:10px;overflow:hidden;background:#0E0B08;isolation:isolate;
+  box-shadow:inset 0 0 0 1px rgba(244,235,220,.07)}
+.glass video,.glass .refl{position:absolute;inset:0;width:100%;height:100%}
+.glass video{object-fit:cover;transform:scaleX(-1);opacity:0;transition:opacity .8s;z-index:2}
+.glass.live video{opacity:1}
+.glass.live .refl{opacity:.5;filter:blur(3px)}
+.refl{z-index:1;transition:opacity .6s,filter .6s;
+  background:
+    radial-gradient(560px 700px at 50% 16%, rgba(255,214,150,.18), transparent 62%),
+    radial-gradient(420px 520px at 18% 78%, rgba(191,140,90,.13), transparent 60%),
+    linear-gradient(180deg,#221A14,#171210 46%,#100C0A)}
+.refl svg{width:100%;height:100%;display:block}
+.neutralbg{position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;transition:opacity .5s;
+  background:radial-gradient(760px 900px at 50% 22%, rgba(255,255,255,.10), transparent 66%),linear-gradient(180deg,#9A9A9A,#848484 60%,#8E8E8E)}
+.glass.neutral .neutralbg{opacity:1}
+.tint{position:absolute;inset:0;z-index:6;pointer-events:none;opacity:0;transition:opacity .6s,background .6s;mix-blend-mode:screen}
+.glass.t-warm .tint{opacity:.20;background:radial-gradient(74% 62% at 50% 42%,#C08C3E,transparent 76%)}
+.glass.t-cold .tint{opacity:.16;background:radial-gradient(74% 62% at 50% 42%,#93A8C2,transparent 76%)}
+.glass.t-day .tint{opacity:.13;background:radial-gradient(74% 62% at 50% 42%,#F4EEDC,transparent 78%)}
+.sheen{position:absolute;inset:0;z-index:7;pointer-events:none;border-radius:10px;
+  background:linear-gradient(118deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,0) 24%,rgba(255,255,255,0) 72%,rgba(255,255,255,.07) 100%)}
+/* ============ 环境层 ============ */
+.ambient{position:absolute;left:0;right:0;top:0;z-index:12;display:flex;justify-content:space-between;align-items:flex-start;
+  padding:30px 38px 0;pointer-events:none;transition:opacity .5s}
+.ambient .L b{font-size:var(--f-lg);font-weight:400;letter-spacing:.06em;display:block;font-variant-numeric:tabular-nums}
+.ambient .L span{font-size:var(--f-xs);color:var(--ink-3);letter-spacing:.14em}
+.ambient .R{display:flex;align-items:center;gap:12px;font-size:var(--f-sm);color:var(--ink-2);text-align:right}
+.ambient .R .ava{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:var(--f-sm);font-weight:700;color:#1A130E;
+  background:linear-gradient(135deg,#EBD9AC,#C79A46);box-shadow:0 6px 18px rgba(180,132,47,.4)}
+.glass.ambient-off .ambient,.glass.ambient-off .rail,.glass.ambient-off .hintbar{opacity:0;pointer-events:none}
+/* ============ 左缘竖向模块栏 ============ */
+.rail{position:absolute;left:26px;top:140px;z-index:14;width:132px;display:flex;flex-direction:column;gap:12px;transition:opacity .5s}
+.rail button{font-family:inherit;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--ink-3);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:146px;border-radius:18px;transition:.25s}
+.rail button svg{width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.rail button b{font-size:var(--f-sm);font-weight:600;letter-spacing:.04em}
+.rail button:hover{color:var(--ink);background:rgba(244,235,220,.06);border-color:var(--line)}
+.rail button.on{color:#1A130E;background:linear-gradient(150deg,#EBD9AC,#C79A46);border-color:rgba(255,255,255,.3);box-shadow:0 12px 30px rgba(180,132,47,.34)}
+/* ============ 内容浮层区 ============ */
+.stagearea{position:absolute;left:180px;right:30px;top:140px;bottom:148px;z-index:16}
+.ov{position:absolute;inset:0;display:none;flex-direction:column;gap:20px;overflow-y:auto;overscroll-behavior:contain;padding-right:8px}
+.ov.on{display:flex;animation:ovin .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes ovin{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.ov::-webkit-scrollbar{width:0}
+.col2{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media(max-width:900px){.col2{grid-template-columns:1fr}}
+/* ---- 玻璃浮层卡片（沙龙暗玻璃） ---- */
+.card{border-radius:22px;padding:24px 26px;background:linear-gradient(150deg,rgba(38,29,21,.90),rgba(23,17,12,.84));
+  border:1px solid var(--line);backdrop-filter:blur(18px);box-shadow:0 18px 40px rgba(0,0,0,.44),inset 0 1px 0 rgba(244,235,220,.06)}
+.card.tinted{background:linear-gradient(150deg,rgba(66,48,25,.88),rgba(30,22,14,.84));border-color:rgba(217,177,102,.34)}
+.card.hero{border-radius:28px;background:linear-gradient(150deg,rgba(56,40,21,.94),rgba(26,19,13,.86) 56%,rgba(20,15,10,.92));border-color:rgba(217,177,102,.40)}
+.t1{font-size:var(--f-xl);font-weight:700;letter-spacing:-.01em;line-height:1.25;margin-bottom:12px}
+.t2{font-size:var(--f-lg);font-weight:600;margin-bottom:12px}
+.t3{font-size:var(--f-md);font-weight:600;margin-bottom:9px}
+.p{font-size:var(--f-sm);line-height:1.75;color:var(--ink-2)}
+.p b{color:var(--ink);font-weight:700}
+.mut{font-size:var(--f-xs);color:var(--ink-3);line-height:1.7}
+.grad{background:linear-gradient(100deg,var(--brand-2),var(--brand) 60%,var(--copper));-webkit-background-clip:text;background-clip:text;color:transparent}
+/* ---- 一米触控按钮 ---- */
+.btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:86px;border-radius:18px;border:0;cursor:pointer;
+  font-family:inherit;font-size:var(--f-md);font-weight:700;color:#1A130E;background:linear-gradient(120deg,#E3C77E,var(--brand) 60%,#A8762A);
+  box-shadow:0 14px 32px rgba(180,132,47,.30);transition:.2s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 20px 40px rgba(180,132,47,.40)}
+.btn.ghost{background:rgba(244,235,220,.07);border:1px solid var(--line);box-shadow:none;color:var(--ink-2);font-weight:500}
+.btn.ghost:hover{border-color:rgba(217,177,102,.55);color:var(--ink)}
+.btn.sm{min-height:66px;font-size:var(--f-sm);border-radius:14px}
+.row2{display:flex;gap:16px}
+.chips{display:flex;gap:12px;flex-wrap:wrap}
+.pill{font-size:var(--f-xs);padding:11px 20px;border-radius:30px;background:rgba(244,235,220,.07);border:1px solid var(--line);color:var(--ink-2)}
+.pill.hot{background:rgba(217,177,102,.18);border-color:rgba(217,177,102,.46);color:var(--brand-2);font-weight:700}
+.notice{font-size:var(--f-xs);line-height:1.7;padding:16px 18px;border-radius:16px;background:rgba(180,132,47,.13);border:1px solid rgba(217,177,102,.30);color:var(--ink-2)}
+.notice b{color:var(--brand-2)}
+/* ---- 中性灰底（肤质检测 / 前后对比） ---- */
+.glass.neutral .stagearea{--ink:#232019;--ink-2:rgba(35,32,25,.76);--ink-3:rgba(35,32,25,.52);--line:rgba(0,0,0,.12);--track:rgba(0,0,0,.12);--brand-2:#7A5A1E}
+.glass.neutral .card{background:linear-gradient(150deg,rgba(250,250,249,.95),rgba(233,233,231,.92));border-color:rgba(0,0,0,.10);box-shadow:0 18px 40px rgba(0,0,0,.20)}
+.glass.neutral .card.hero{background:linear-gradient(150deg,rgba(255,255,255,.98),rgba(238,238,236,.95))}
+.glass.neutral .pill.hot{background:rgba(180,132,47,.16);border-color:rgba(180,132,47,.42);color:#5E4514}
+.glass.neutral .steps li i{border-color:rgba(0,0,0,.20)}
+.glass.neutral .steps li.ok i{background:#B4842F;border-color:#B4842F;color:#fff}
+.glass.neutral .hbar .track{background:rgba(0,0,0,.10)}
+/* ---- 感应 / 自动流程 ---- */
+.sense{display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:18px;background:rgba(217,177,102,.10);border:1px solid rgba(217,177,102,.28)}
+.sense .dot{flex:none;width:20px;height:20px;border-radius:50%;background:var(--gold);position:relative}
+.sense .dot::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--gold);opacity:.5;animation:pulse 1.8s infinite}
+@keyframes pulse{0%{transform:scale(.7);opacity:.6}100%{transform:scale(1.5);opacity:0}}
+.sense b{display:block;font-size:var(--f-md);font-weight:700}
+.sense small{font-size:var(--f-xs);color:var(--ink-3)}
+.autobar{display:flex;align-items:center;gap:18px;padding:18px 24px;border-radius:18px;background:linear-gradient(120deg,rgba(217,177,102,.22),rgba(180,132,47,.07));border:1px solid rgba(217,177,102,.44)}
+.autobar .dot{flex:none;width:18px;height:18px;border-radius:50%;background:var(--gold);box-shadow:0 0 16px rgba(217,177,102,.8);animation:pulse2 1.4s infinite}
+@keyframes pulse2{0%,100%{opacity:1}50%{opacity:.35}}
+.autobar b{display:block;font-size:var(--f-md);font-weight:700}
+.autobar small{font-size:var(--f-xs);color:var(--ink-3)}
+.autobar .act{margin-left:auto;flex:none;font-family:inherit;font-size:var(--f-xs);font-weight:600;color:var(--brand-2);cursor:pointer;min-height:58px;padding:0 22px;border-radius:30px;border:1px solid rgba(217,177,102,.46);background:rgba(217,177,102,.10)}
+/* ---- 进度环 / 步骤 ---- */
+.ring{position:relative;width:min(320px,100%);aspect-ratio:1;margin:0 auto}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .val b{font-size:var(--f-2xl);font-weight:300;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ring .val small{font-size:var(--f-xs);color:var(--ink-3);letter-spacing:.2em;margin-top:8px}
+.steps li{list-style:none;display:flex;align-items:center;gap:14px;font-size:var(--f-sm);color:var(--ink-3);padding:13px 0;border-bottom:1px dashed var(--line)}
+.steps li:last-child{border-bottom:0}
+.steps li i{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:14px;font-style:normal}
+.steps li.ok{color:var(--ink)}
+.steps li.ok i{background:var(--brand);border-color:var(--brand);color:#1A130E}
+.steps li.ok i::before{content:"\2713"}
+/* ---- 指标条 ---- */
+.hbar{margin-bottom:14px}
+.hbar .lbl{display:flex;justify-content:space-between;font-size:var(--f-xs);margin-bottom:8px}
+.hbar .lbl b{color:var(--ink);font-weight:700}
+.hbar .lbl span{color:var(--ink-3)}
+.hbar .track{height:12px;border-radius:12px;background:var(--track);overflow:hidden}
+.hbar .track i{display:block;height:100%;border-radius:12px;background:linear-gradient(90deg,var(--brand),var(--gold));transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.hbar.t2 .track i{background:linear-gradient(90deg,#D08A46,var(--copper))}
+.hbar.t3 .track i{background:linear-gradient(90deg,var(--copper),#8E5B3C)}
+/* ---- 发型试戴台 ---- */
+.hairstage{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(460px 420px at 50% 20%,rgba(217,177,102,.17),transparent 70%),linear-gradient(180deg,#221A14,#14100C);
+  aspect-ratio:3/4;display:flex;align-items:flex-end;justify-content:center}
+.hairstage .head{width:80%;height:97%;display:block}
+.hairstage .tag{position:absolute;left:16px;top:16px;font-size:var(--f-xs);padding:9px 16px;border-radius:30px;background:rgba(20,15,10,.82);color:var(--brand-2);border:1px solid rgba(217,177,102,.40)}
+.hairstage .tag2{position:absolute;right:16px;top:16px;font-size:var(--f-xs);padding:9px 16px;border-radius:30px;background:rgba(20,15,10,.82);color:var(--ink-2);border:1px solid var(--line)}
+.head{display:block}
+.price{display:flex;align-items:baseline;gap:12px;margin-top:16px}
+.price b{font-size:var(--f-xl);font-weight:800;color:var(--brand-2)}
+.price s{font-size:var(--f-sm);color:var(--ink-3)}
+/* ---- 手势 ---- */
+.ghints{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.ghint{display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 8px;border-radius:16px;background:rgba(244,235,220,.05);border:1px solid var(--line)}
+.ghint svg{width:40px;height:40px;stroke:var(--gold);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.ghint b{font-size:var(--f-xs);font-weight:600}
+.ghint small{font-size:15px;color:var(--ink-3)}
+.gpad{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.gpad button{font-family:inherit;font-size:var(--f-sm);min-height:78px;border-radius:16px;cursor:pointer;color:var(--ink);background:rgba(244,235,220,.06);border:1px solid var(--line);transition:.2s;font-weight:600}
+.gpad button:hover{background:linear-gradient(135deg,rgba(217,177,102,.20),rgba(235,217,172,.14));border-color:rgba(217,177,102,.44)}
+.lights{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.lights button{font-family:inherit;font-size:var(--f-sm);min-height:74px;border-radius:16px;cursor:pointer;color:var(--ink-2);background:rgba(244,235,220,.06);border:1px solid var(--line);transition:.2s}
+.lights button.on{color:#1A130E;font-weight:700;background:linear-gradient(135deg,#E3C77E,var(--brand));border-color:transparent}
+/* ---- 色号 ---- */
+.swatches{display:flex;gap:14px;flex-wrap:wrap}
+.swatch{flex:none;width:88px;border-radius:14px;overflow:hidden;cursor:pointer;background:rgba(244,235,220,.05);border:1px solid var(--line);transition:.2s}
+.swatch:hover{transform:translateY(-3px);border-color:rgba(217,177,102,.5)}
+.swatch.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(217,177,102,.42)}
+.swatch .c{height:56px}
+.swatch .n{padding:8px 8px 10px;font-size:14px;text-align:center;color:var(--ink-2);line-height:1.35}
+.swatch .n b{display:block;color:var(--ink);font-size:15px}
+.cgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.cgrid .swatch{width:100%}
+/* ---- 前后对比 ---- */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:0;border-radius:18px;overflow:hidden;border:1px solid var(--line);position:relative;background:#8E8E8E}
+.cmpane{position:relative;aspect-ratio:3/4;display:flex;align-items:flex-end;justify-content:center;background:linear-gradient(180deg,#9C9C9C,#7E7E7E)}
+.cmpane+.cmpane{border-left:2px dashed rgba(0,0,0,.28)}
+.cmpane .head{width:82%;height:97%}
+.cmpane .tag{position:absolute;left:14px;top:14px;font-size:var(--f-xs);padding:8px 16px;border-radius:30px;background:rgba(20,15,10,.78);color:#F4EBDC;border:1px solid rgba(255,255,255,.22)}
+.cmpane.after .tag{background:linear-gradient(120deg,#E3C77E,#B4842F);color:#241B12;border-color:transparent;font-weight:700}
+.cmpane .subtag{position:absolute;left:14px;bottom:14px;font-size:15px;padding:7px 14px;border-radius:20px;background:rgba(20,15,10,.66);color:#EFE6D6}
+/* ---- 方案卡 ---- */
+.plancard{border-radius:20px;overflow:hidden;border:1px solid rgba(217,177,102,.42);background:linear-gradient(150deg,#241B14,#15100B);box-shadow:0 20px 44px rgba(0,0,0,.42)}
+.pc-head{display:flex;gap:20px;padding:22px 24px;align-items:center;border-bottom:1px solid var(--line)}
+.pc-img{flex:none;width:120px;height:150px;border-radius:14px;overflow:hidden;background:radial-gradient(120px 140px at 50% 24%,rgba(217,177,102,.22),transparent 70%),#191310;border:1px solid var(--line);display:flex;align-items:flex-end;justify-content:center}
+.pc-img .head{width:96%;height:98%}
+.pc-tx{flex:1;min-width:0}
+.pc-tx b{display:block;font-size:var(--f-lg);font-weight:700;margin-bottom:8px}
+.pc-tx small{font-size:var(--f-xs);color:var(--ink-3);line-height:1.7}
+.pc-rows{padding:18px 24px}
+.pc-rows .r{display:flex;justify-content:space-between;gap:16px;font-size:var(--f-xs);padding:11px 0;border-bottom:1px dashed var(--line-2);color:var(--ink-3)}
+.pc-rows .r:last-child{border-bottom:0}
+.pc-rows .r b{color:var(--ink);font-weight:600}
+.pc-foot{display:flex;justify-content:space-between;font-size:15px;letter-spacing:.14em;color:rgba(217,177,102,.72);padding:14px 24px;background:rgba(217,177,102,.07);border-top:1px solid var(--line)}
+.qr{width:190px;height:190px;padding:12px;border-radius:18px;background:#fff;border:1px solid var(--line);display:grid;place-items:center}
+.qr svg{width:100%;height:100%}
+/* ---- 商品 / 发型条 ---- */
+.strip{display:flex;gap:16px;overflow-x:auto;padding-bottom:6px}
+.strip::-webkit-scrollbar{height:0}
+.scard{flex:none;width:196px;border-radius:18px;overflow:hidden;cursor:pointer;background:rgba(244,235,220,.05);border:1px solid var(--line);transition:.2s}
+.scard:hover{border-color:rgba(217,177,102,.5);transform:translateY(-3px)}
+.scard.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(217,177,102,.35),0 12px 26px rgba(0,0,0,.34)}
+.scard .sface{height:180px;position:relative;background:radial-gradient(160px 150px at 50% 22%,rgba(217,177,102,.16),transparent 72%),linear-gradient(180deg,#1E1712,#131009);display:flex;align-items:flex-end;justify-content:center}
+.scard .sface .head{width:92%;height:98%}
+.scard .sinfo{padding:13px 15px 16px}
+.scard .sinfo b{display:block;font-size:var(--f-xs);font-weight:600;line-height:1.5;margin-bottom:6px}
+.scard .sinfo small{font-size:15px;color:var(--ink-3)}
+/* ---- 沙龙 / 库存 / 预约 ---- */
+.store{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:18px;background:rgba(244,235,220,.05);border:1px solid var(--line);margin-bottom:16px}
+.store .pin-i{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#E3C77E,var(--brand));color:#1A130E}
+.store b{display:block;font-size:var(--f-md);font-weight:700}
+.store small{font-size:var(--f-xs);color:var(--ink-3)}
+.inv{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.inv .cel{padding:16px 10px;border-radius:14px;text-align:center;background:rgba(244,235,220,.05);border:1px solid var(--line)}
+.inv .cel b{display:block;font-size:var(--f-md);font-weight:800}
+.inv .cel small{font-size:15px;color:var(--ink-3);display:block;margin-top:4px}
+.inv .cel.out{opacity:.55}
+.inv .cel.out b{color:#D9645A}
+.inv .cel.low b{color:#D1A24C}
+.inv .cel.ok b{color:#8CC08A}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.slots button{font-family:inherit;font-size:var(--f-sm);min-height:76px;border-radius:16px;cursor:pointer;color:var(--ink-2);background:rgba(244,235,220,.06);border:1px solid var(--line);transition:.2s;font-weight:600}
+.slots button:hover{border-color:rgba(217,177,102,.5)}
+.slots button.on{color:#1A130E;background:linear-gradient(135deg,#E3C77E,var(--brand));border-color:transparent}
+.slots button.off{opacity:.42;cursor:not-allowed;text-decoration:line-through}
+.stylist{display:flex;gap:16px;align-items:center;padding:18px 20px;border-radius:18px;background:rgba(244,235,220,.05);border:1px solid var(--line);margin-bottom:14px;cursor:pointer;transition:.2s}
+.stylist:hover{border-color:rgba(217,177,102,.5)}
+.stylist.on{border-color:var(--gold);background:linear-gradient(120deg,rgba(217,177,102,.18),rgba(244,235,220,.05));box-shadow:0 0 0 2px rgba(217,177,102,.28)}
+.stylist .av{flex:none;width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:var(--f-md);font-weight:700;color:#1A130E;background:linear-gradient(135deg,#EBD9AC,#B4842F)}
+.stylist .tx{flex:1;min-width:0}
+.stylist .tx b{display:block;font-size:var(--f-md);font-weight:700}
+.stylist .tx small{font-size:var(--f-xs);color:var(--ink-3)}
+.stylist .pv{flex:none;font-size:var(--f-md);font-weight:800;color:var(--brand-2)}
+.svc{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:16px;background:rgba(244,235,220,.05);border:1px solid var(--line);margin-bottom:12px;cursor:pointer;transition:.2s}
+.svc.on{border-color:rgba(217,177,102,.5);background:linear-gradient(120deg,rgba(217,177,102,.16),rgba(244,235,220,.04))}
+.svc .ck{flex:none;width:34px;height:34px;border-radius:10px;border:2px solid var(--line);display:grid;place-items:center;color:transparent;font-size:18px}
+.svc.on .ck{background:linear-gradient(135deg,#E3C77E,var(--brand));border-color:transparent;color:#1A130E}
+.svc.on .ck::before{content:"\2713"}
+.svc .tx{flex:1;min-width:0}
+.svc .tx b{display:block;font-size:var(--f-sm);font-weight:600}
+.svc .tx small{font-size:15px;color:var(--ink-3)}
+.svc .pv{flex:none;font-size:var(--f-md);font-weight:800;color:var(--brand-2)}
+.kvlist li{list-style:none;display:flex;justify-content:space-between;gap:14px;font-size:var(--f-xs);padding:12px 0;border-bottom:1px dashed var(--line-2);color:var(--ink-3)}
+.kvlist li:last-child{border-bottom:0}
+.kvlist li b{color:var(--ink);font-weight:600}
+/* ---- 底部手势 / 语音提示 ---- */
+.hintbar{position:absolute;left:180px;right:30px;bottom:32px;z-index:14;display:flex;align-items:center;gap:18px;padding:18px 24px;border-radius:22px;
+  background:linear-gradient(150deg,rgba(40,30,20,.90),rgba(22,16,11,.84));border:1px solid var(--line);backdrop-filter:blur(18px);transition:opacity .5s;box-shadow:0 12px 30px rgba(0,0,0,.34)}
+.hintbar .mic{flex:none;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#E3C77E,var(--brand));box-shadow:0 8px 20px rgba(180,132,47,.34)}
+.hintbar .mic svg{stroke:#1A130E}
+.hintbar .txt{flex:1;min-width:0;font-size:var(--f-sm);color:var(--ink-2);line-height:1.6}
+.hintbar .txt b{color:var(--ink);font-weight:700}
+.hintbar .txt small{display:block;font-size:var(--f-xs);color:var(--ink-3);margin-top:5px}
+.hintbar .act{flex:none;font-family:inherit;font-size:var(--f-xs);font-weight:600;color:var(--brand-2);cursor:pointer;min-height:58px;padding:0 24px;border-radius:30px;border:1px solid rgba(217,177,102,.46);background:rgba(217,177,102,.10)}
+.hintbar .act:hover{background:rgba(217,177,102,.22)}
+/* ---- 手势反馈 ---- */
+.gflash{position:absolute;inset:0;z-index:44;pointer-events:none;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .28s}
+.gflash.on{opacity:1}
+.gflash .box{display:flex;align-items:center;gap:18px;padding:24px 38px;border-radius:26px;background:rgba(20,15,10,.94);border:1px solid rgba(217,177,102,.42);box-shadow:0 24px 54px rgba(0,0,0,.6)}
+.gflash .box svg{width:44px;height:44px;stroke:var(--gold);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.gflash .box b{font-size:var(--f-lg);font-weight:700}
+.gflash .box small{display:block;font-size:var(--f-xs);color:var(--ink-3);margin-top:5px}
+/* ---- 标注 ---- */
+.pin{position:absolute;z-index:30;width:34px;height:34px;min-width:34px;min-height:34px;border-radius:50%;display:grid;place-items:center;
+  font-size:var(--f-xs);font-weight:700;color:#1A130E;cursor:help;opacity:0;pointer-events:none;transition:opacity .25s;
+  background:linear-gradient(135deg,#EBD9AC,#B4842F);box-shadow:0 0 0 5px rgba(217,177,102,.22),0 8px 20px rgba(0,0,0,.4)}
+body.annot-on .pin,.pin.shown{opacity:1;pointer-events:auto}
+.pin::after{content:attr(data-note);position:absolute;left:44px;top:-10px;width:250px;font-size:var(--f-xs);line-height:1.65;color:#F4EBDC;text-align:left;
+  background:rgba(20,15,10,.98);border:1px solid rgba(217,177,102,.46);border-radius:16px;padding:16px 18px;opacity:0;visibility:hidden;transform:translateX(-6px);transition:.2s;pointer-events:none;box-shadow:0 18px 42px rgba(0,0,0,.5)}
+.pin:hover::after,.pin.pinopen::after{opacity:1;visibility:visible;transform:none}
+.pin.pinopen{box-shadow:0 0 0 5px rgba(217,177,102,.4),0 8px 22px rgba(0,0,0,.44)}
+.annlist li{list-style:none;display:flex;gap:9px;font-size:11px;line-height:1.7;color:var(--ink-2);margin-bottom:10px}
+.annlist li b{flex:none;width:19px;height:19px;border-radius:50%;background:linear-gradient(135deg,#EBD9AC,#B4842F);color:#1A130E;font-size:10px;display:grid;place-items:center;margin-top:2px}
+/* ---- side panel ---- */
+.panel{position:sticky;top:88px;border-radius:24px;padding:24px;background:linear-gradient(160deg,rgba(38,29,21,.82),rgba(20,15,11,.68));border:1px solid var(--line);backdrop-filter:blur(14px)}
+.panel .ph{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.18em;color:var(--gold);margin-bottom:12px}
+.panel .ph::before{content:"";width:16px;height:1px;background:var(--gold)}
+.panel h2{font-size:17px;font-weight:700;margin-bottom:6px}
+.panel .lead{font-size:12px;color:var(--ink-2);line-height:1.75;margin-bottom:16px}
+.kv{display:grid;grid-template-columns:62px 1fr;gap:10px 12px;font-size:11.5px;line-height:1.65;margin-bottom:16px}
+.kv dt{color:var(--ink-3);font-size:10.5px;letter-spacing:.06em;padding-top:2px}
+.kv dd{color:var(--ink-2)}
+.kv dd b{color:var(--ink);font-weight:700}
+.panel .divider{height:1px;background:var(--line-2);margin:16px 0}
+.tips li{list-style:none;display:flex;gap:9px;font-size:11.5px;color:var(--ink-2);line-height:1.65;margin-bottom:9px}
+.tips li::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;background:var(--gold);margin-top:7px}
+.gotolink{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--gold);text-decoration:none;cursor:pointer;border-bottom:1px dashed rgba(217,177,102,.5);padding-bottom:2px}
+/* ---- plan view ---- */
+.doc{max-width:1100px;margin:0 auto;padding:48px 26px 90px}
+.doc-title{text-align:center;margin-bottom:46px}
+.doc-title h1{font-size:38px;font-weight:800;letter-spacing:-.02em;line-height:1.2;background:linear-gradient(100deg,var(--ink) 18%,var(--brand-2) 60%,var(--copper));-webkit-background-clip:text;background-clip:text;color:transparent}
+.doc-title p{margin-top:14px;font-size:13.5px;color:var(--ink-2);line-height:1.8}
+.doc-title .meta{margin-top:18px;font-size:11px;letter-spacing:.18em;color:var(--ink-3)}
+section.blk{margin-bottom:46px}
+.blk > h2{font-size:20px;font-weight:700;display:flex;align-items:center;gap:11px;margin-bottom:16px}
+.blk > h2 .no{font-size:11px;font-weight:700;font-family:ui-monospace,Menlo,monospace;color:var(--gold);border:1px solid rgba(217,177,102,.42);border-radius:7px;padding:3px 7px}
+.blk > p.lead{font-size:13px;color:var(--ink-2);line-height:1.85;margin-bottom:18px}
+.blk > p.lead b{color:var(--ink);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:12px;border-radius:18px;overflow:hidden;border:1px solid var(--line);background:rgba(244,235,220,.04)}
+th{background:rgba(217,177,102,.13);color:var(--brand-2);font-weight:700;font-size:10.5px;letter-spacing:.08em;text-align:left;padding:11px 13px;border-bottom:1px solid var(--line)}
+td{padding:11px 13px;border-bottom:1px solid var(--line-2);color:var(--ink-2);line-height:1.6;vertical-align:top}
+tr:last-child td{border-bottom:0}
+td b{color:var(--ink);font-weight:700}
+tr.hl td{background:linear-gradient(90deg,rgba(217,177,102,.15),rgba(235,217,172,.04))}
+tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.mini{border-radius:18px;padding:16px;background:rgba(244,235,220,.045);border:1px solid var(--line)}
+.mini h4{font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.mini h4 .dotc{width:7px;height:7px;border-radius:50%;background:var(--gold)}
+.mini p{font-size:11.5px;color:var(--ink-2);line-height:1.75}
+.chain{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 18px}
+.chain span{font-size:11.5px;padding:9px 14px;border-radius:24px;background:rgba(244,235,220,.06);border:1px solid var(--line);color:var(--ink-2);position:relative}
+.chain span.act{background:linear-gradient(120deg,#E3C77E,var(--brand));color:#1A130E;font-weight:700;border-color:transparent}
+.chain span:not(:last-child)::after{content:"\203A";position:absolute;right:-9px;top:9px;color:var(--ink-3);font-size:13px}
+.hbar-doc{margin-bottom:12px}
+.hbar-doc .lbl{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:6px}
+.hbar-doc .lbl b{color:var(--ink);font-weight:700}
+.hbar-doc .track{height:8px;border-radius:8px;background:var(--track);overflow:hidden}
+.hbar-doc .track i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,var(--brand),var(--gold));transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.hbar-doc.t2 .track i{background:linear-gradient(90deg,#D08A46,var(--copper))}
+.hbar-doc.t3 .track i{background:linear-gradient(90deg,var(--copper),#8E5B3C)}
+.quote{border-radius:24px;padding:30px 32px;text-align:center;background:linear-gradient(150deg,rgba(217,177,102,.16),rgba(185,106,60,.10) 60%,rgba(244,235,220,.04));border:1px solid rgba(217,177,102,.28)}
+.quote p{font-size:16px;line-height:1.95;font-weight:400}
+.quote p b{font-weight:800;background:linear-gradient(100deg,var(--brand-2),var(--copper));-webkit-background-clip:text;background-clip:text;color:transparent}
+.quote small{display:block;margin-top:16px;font-size:11px;letter-spacing:.16em;color:var(--ink-3)}
+.lane{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap}
+.lane .stepbox{flex:1;min-width:190px;border-radius:18px;padding:16px;background:rgba(244,235,220,.045);border:1px solid var(--line);position:relative}
+.lane .stepbox .idx{font-size:10.5px;letter-spacing:.14em;color:var(--gold);font-weight:700}
+.lane .stepbox h4{font-size:13px;margin:7px 0 6px}
+.lane .stepbox p{font-size:11.5px;color:var(--ink-2);line-height:1.7}
+/* ---- toast ---- */
+#toast{position:fixed;left:50%;bottom:38px;transform:translate(-50%,26px);z-index:99;font-size:12.5px;padding:12px 20px;border-radius:30px;
+  background:rgba(15,11,8,.96);border:1px solid rgba(217,177,102,.5);color:#F4EBDC;box-shadow:0 18px 46px rgba(0,0,0,.6);opacity:0;visibility:hidden;transition:.3s;display:flex;align-items:center;gap:9px}
+#toast.on{opacity:1;visibility:visible;transform:translate(-50%,0)}
+#toast::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="mark"></div>
+    <div>
+      <h1>LUMIÈRE · AI 美发魔镜</h1>
+      <small>SALON · 独立壁挂工位镜 / 21.5-32" 竖屏 9:16</small>
+    </div>
+  </div>
+  <div class="seg">
+    <button id="tabProto" class="on" onclick="setView('proto')">镜面原型</button>
+    <button id="tabPlan" onclick="setView('plan')">方案说明</button>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="chipbtn" id="sitBtn" onclick="simulateSit()">模拟顾客入座</button>
+    <button class="chipbtn" id="annotBtn" onclick="toggleAnnot()">设计标注</button>
+    <button class="chipbtn">内部评审 v0.1</button>
+  </div>
+</header>
+
+<!-- ================= MIRROR PROTOTYPE ================= -->
+<section class="view on" id="viewProto">
+  <div class="stage">
+    <div class="mirror-slot">
+      <div class="slot-inner">
+        <div class="device" id="device">
+          <div class="frame">
+            <div class="band"></div>
+            <div class="glass" id="glass">
+
+              <!-- 镜面本体：实时影像 / 模拟反光 -->
+              <video id="cam" playsinline muted autoplay></video>
+              <div class="refl" id="refl">
+                <svg viewBox="0 0 900 1600" preserveAspectRatio="xMidYMid slice">
+                  <defs>
+                    <linearGradient id="fig" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#6B5844" stop-opacity=".72"/>
+                      <stop offset="1" stop-color="#241C15" stop-opacity=".92"/>
+                    </linearGradient>
+                    <radialGradient id="win" cx="50%" cy="50%" r="50%">
+                      <stop offset="0" stop-color="#FFD79A" stop-opacity=".55"/>
+                      <stop offset="1" stop-color="#FFD79A" stop-opacity="0"/>
+                    </radialGradient>
+                  </defs>
+                  <ellipse cx="450" cy="470" rx="430" ry="470" fill="url(#win)"/>
+                  <ellipse cx="450" cy="880" rx="118" ry="148" fill="url(#fig)"/>
+                  <ellipse cx="450" cy="880" rx="118" ry="148" fill="none" stroke="rgba(255,220,170,.30)" stroke-width="5"/>
+                  <path d="M330 1030h240c70 30 120 130 140 570H190c20-440 70-540 140-570z" fill="url(#fig)"/>
+                  <path d="M330 1030h240" stroke="rgba(255,220,170,.18)" stroke-width="5"/>
+                </svg>
+              </div>
+              <div class="neutralbg"></div>
+              <div class="tint"></div>
+              <div class="sheen"></div>
+
+              <!-- 环境层 -->
+              <div class="ambient">
+                <div class="L"><b id="clock">14:20</b><span>周四 · 工位 03</span></div>
+                <div class="R"><span>LUMIÈRE 沙龙 · 上海静安店</span><span class="ava">客</span></div>
+              </div>
+
+              <!-- 左缘竖向模块栏 -->
+              <nav class="rail">
+                <button class="on" data-s="idle" onclick="go('idle')"><svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M9 6.5h6"/><circle cx="12" cy="13" r="2.8"/></svg><b>镜面</b></button>
+                <button data-s="detect" onclick="go('detect')"><svg viewBox="0 0 24 24"><path d="M12 3c3.6 4.2 5.6 6.5 5.6 9.4A5.6 5.6 0 0 1 6.4 12.4C6.4 9.5 8.4 7.2 12 3z"/><path d="M9.6 13.6a2.8 2.8 0 0 0 4.8 0"/></svg><b>检测</b></button>
+                <button data-s="cut" onclick="go('cut')"><svg viewBox="0 0 24 24"><circle cx="6.5" cy="7" r="2.5"/><circle cx="6.5" cy="17" r="2.5"/><path d="M8.4 8.6 20 18M8.4 15.4 20 6"/></svg><b>试戴</b></button>
+                <button data-s="color" onclick="go('color')"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2.1-1.1 2.1-2.2 0-1.6 1.9-2 3.4-2h1.1A2.4 2.4 0 0 0 21 14.4C21 8.5 17.3 3 12 3z"/><circle cx="8.4" cy="10" r="1.2"/><circle cx="12" cy="7.6" r="1.2"/><circle cx="15.6" cy="10" r="1.2"/></svg><b>发色</b></button>
+                <button data-s="compare" onclick="go('compare')"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="8" height="14" rx="1.6"/><rect x="13" y="5" width="8" height="14" rx="1.6"/><path d="M12 3.5v17"/></svg><b>对比</b></button>
+                <button data-s="plan" onclick="go('plan')"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg><b>方案</b></button>
+                <button data-s="book" onclick="go('book')"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg><b>预约</b></button>
+              </nav>
+
+              <!-- 内容浮层 -->
+              <div class="stagearea">
+
+                <!-- 镜面 · 待机 -->
+                <div class="ov on" id="ov-idle">
+                  <div class="card hero">
+                    <div class="t1">欢迎光临 <span class="grad">LUMIÈRE</span></div>
+                    <p class="p" style="margin-bottom:22px">坐进工位，镜子自动唤醒。双手不用触碰屏幕 —— 隔空挥手即可开始 AI 肤质检测与发型试戴。</p>
+                    <div class="row2">
+                      <button class="btn" onclick="startDetect()">坐好 · 开始 AI 肤质检测</button>
+                      <button class="btn ghost" style="width:auto;padding:0 34px" onclick="go('cut')">先看发型库</button>
+                    </div>
+                    <div class="pin" style="left:16px;top:22px" data-note="镜面待机不弹广告、不做前置引导。顾客入座即唤醒，第一件事就是形象诊断——把「坐下来等发型师」的空档直接变成检测入口。">1</div>
+                  </div>
+                  <div class="autobar" id="autoBar" style="display:none">
+                    <span class="dot"></span>
+                    <div><b>顾客已入座 · 已自动唤醒</b><small id="autoSub">即将自动开始 AI 肤质检测…</small></div>
+                    <button class="act" onclick="cancelAuto()">取消自动检测</button>
+                  </div>
+                  <div class="col2">
+                    <div class="card">
+                      <div class="t3">座位感应</div>
+                      <div class="sense">
+                        <span class="dot"></span>
+                        <div><b>已检测到顾客入座</b><small>距离 0.5m · 唤醒用时 0.3s · 自动流程就绪</small></div>
+                      </div>
+                      <p class="mut" style="margin-top:14px">入座即自动触发「肤质检测 → 发型试戴」分支：先看清底色，再谈造型，避免发型师凭经验猜肤色。</p>
+                    </div>
+                    <div class="card tinted">
+                      <div class="t3">本季主推 · 冷雾灰挑染</div>
+                      <p class="p" style="margin-bottom:16px">雾感冷灰底色 + 面部提亮挑染，适配暖黄肤色，本季高定色。</p>
+                      <button class="btn sm ghost" onclick="go('color')">看这个色号</button>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="t3" style="display:flex;justify-content:space-between;align-items:baseline">本季热门发型 <span class="mut" style="cursor:pointer" onclick="go('cut')">全部 ›</span></div>
+                    <div class="strip" id="homeStyles"></div>
+                  </div>
+                </div>
+                <!-- 检测 · 三光谱肤质检测（中性灰底） -->
+                <div class="ov" id="ov-detect">
+                  <div class="col2">
+                    <div class="card">
+                      <div class="t3">三光谱肤质采集</div>
+                      <div class="ring">
+                        <svg viewBox="0 0 200 200">
+                          <circle cx="100" cy="100" r="88" stroke="rgba(0,0,0,.12)" stroke-width="12" fill="none"/>
+                          <circle id="dtArc" cx="100" cy="100" r="88" stroke="url(#gradA)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="553" stroke-dashoffset="553"/>
+                        </svg>
+                        <div class="val"><b id="dtPct">0</b><small>正在检测</small></div>
+                      </div>
+                      <p class="p" id="dtText" style="margin-top:18px;text-align:center">请正对镜面，保持面部自然放松…</p>
+                      <div class="chips" style="justify-content:center;margin-top:14px">
+                        <span class="pill hot">RGB 可见光</span><span class="pill hot">UV 紫外</span><span class="pill hot">PL 偏振</span>
+                      </div>
+                      <div class="pin" style="left:16px;top:22px" data-note="检测流程全自动：顾客坐下即启动，5 秒完成 RGB + UV + PL 三光谱采集。界面刻意切到中性灰底——任何界面色都会干扰对肤色与毛孔的判读。">2</div>
+                    </div>
+                    <div class="card">
+                      <div class="t3">检测流程</div>
+                      <ul class="steps" id="dtSteps">
+                        <li><i></i>RGB 可见光成像 · 肤色基调</li>
+                        <li><i></i>UV 紫外线毛孔成像</li>
+                        <li><i></i>PL 偏振光色斑与红斑</li>
+                        <li><i></i>7200K 补光显色校准</li>
+                        <li><i></i>肤质指标建模</li>
+                      </ul>
+                      <div class="notice" style="margin-top:16px">
+                        <b>隐私说明 ·</b> 检测影像与指标仅在本机生成报告，原始影像不上传云端；顾客可随时一键清除。
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card" id="dtResult" style="display:none">
+                    <div class="t2">肤质检测报告</div>
+                    <p class="p" style="margin-bottom:20px">肤色基调 <b>暖调</b> · 明度 中 · 对比度 低 —— 建议用冷调或中性调压黄，避免高饱和红棕与过浅冷灰。</p>
+                    <div id="dtBars"></div>
+                    <div class="chips" style="margin:20px 0 22px">
+                      <span class="pill hot">毛孔 中等</span><span class="pill">敏感度 低</span><span class="pill">色斑 轻度</span><span class="pill">屏障 良好</span>
+                    </div>
+                    <div class="row2">
+                      <button class="btn" onclick="go('cut')">进入发型试戴</button>
+                      <button class="btn ghost" style="width:auto;padding:0 30px" onclick="go('compare')">看前后对比</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 试戴 · 发型虚拟试戴 -->
+                <div class="ov" id="ov-cut">
+                  <div class="col2">
+                    <div class="card">
+                      <div class="t3">你的面部模型 · 实时试戴</div>
+                      <div class="hairstage" id="hairStage">
+                        <span class="tag" id="cutTag">—</span>
+                        <span class="tag2" id="cutCurl">直发</span>
+                      </div>
+                    </div>
+                    <div class="card">
+                      <div class="t3">当前方案 · <span id="cutName">—</span></div>
+                      <p class="mut" id="cutMeta">—</p>
+                      <div class="price"><b id="cutPrice">¥0</b><span class="pill" id="cutDur" style="margin-left:auto">时长 90min</span></div>
+                      <div class="chips" id="cutTags"></div>
+                      <div class="row2" style="margin-top:18px">
+                        <button class="btn sm" onclick="go('compare')">前后对比</button>
+                        <button class="btn ghost sm" onclick="go('color')">换个发色</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="t3">隔空手势 · 无接触换发型</div>
+                    <div class="ghints">
+                      <div class="ghint"><svg viewBox="0 0 24 24"><path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M10 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M13 11V6.5a1.5 1.5 0 0 1 3 0V13"/><path d="M16 12.5c1.2-.4 2.6.3 3 1.4.5 1.3-.3 2.4-1.6 3.6-1.6 1.5-3.4 2.5-5.9 2.5-3.6 0-5-2-6.2-4.4L4 13.6c-.6-1.2.2-2.3 1.4-2.5.9-.2 1.7.3 2.1 1.1"/></svg><b>挥手</b><small>换发型</small></div>
+                      <div class="ghint"><svg viewBox="0 0 24 24"><path d="M4 12h16M9 7l-5 5 5 5M15 7l5 5-5 5"/></svg><b>左右挥</b><small>换风格</small></div>
+                      <div class="ghint"><svg viewBox="0 0 24 24"><path d="M12 20V5M7 10l5-5 5 5M7 15l5 5 5-5"/></svg><b>上下挥</b><small>调卷度</small></div>
+                      <div class="ghint"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M9 9l6 6M15 9l-6 6"/></svg><b>握拳</b><small>收藏方案</small></div>
+                    </div>
+                    <div class="gpad">
+                      <button onclick="gesture('prev')">上一个发型</button>
+                      <button onclick="gesture('next')">下一个发型</button>
+                      <button onclick="gesture('curl')">调卷度</button>
+                      <button onclick="gesture('like')">收藏方案</button>
+                    </div>
+                    <div class="pin" style="left:16px;top:22px" data-note="手势是本场景第一交互方式：顾客双手常拿着包或手机，且正在照镜子。挥手换发型 / 左右挥换风格 / 上下挥调卷度 / 握拳收藏，四式覆盖试戴主循环；触控按钮仅作兜底。">3</div>
+                  </div>
+
+                  <div class="card">
+                    <div class="t3" style="display:flex;justify-content:space-between;align-items:baseline">发型库 · 挥手切换 <span class="mut" id="cutGenderTag">女发</span></div>
+                    <div class="tabs" style="display:flex;gap:12px;margin:14px 0 16px">
+                      <button id="hgW" class="pill hot" style="cursor:pointer" onclick="setHairGender('w')">女发</button>
+                      <button id="hgM" class="pill" style="cursor:pointer" onclick="setHairGender('m')">男发</button>
+                    </div>
+                    <div class="strip" id="cutStrip"></div>
+                  </div>
+
+                  <div class="col2">
+                    <div class="card">
+                      <div class="t3">试试不同色号</div>
+                      <div class="swatches" id="cutSwatch"></div>
+                    </div>
+                    <div class="card">
+                      <div class="t3">沙龙灯光显色模拟</div>
+                      <p class="mut" style="margin-bottom:16px">同一染膏在不同光源下呈现不同发色 —— 这是「回家发现色不对」的高发原因。</p>
+                      <div class="lights">
+                        <button id="l0" class="on" onclick="setLight(0)">工位暖光</button>
+                        <button id="l1" onclick="setLight(1)">商场白光</button>
+                        <button id="l2" onclick="setLight(2)">户外日光</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 发色 · 染膏色号 -->
+                <div class="ov" id="ov-color">
+                  <div class="card hero">
+                    <div class="t1">发色 · <span class="grad">染膏色号</span></div>
+                    <p class="p">按检测报告的肤色基调标出最适配的染膏色号。点选即刻试戴，再回到对比页看整体效果。</p>
+                    <div class="pin" style="left:16px;top:22px" data-note="发色库直接对齐门店染膏色号体系，镜子给出的建议可以当场兑现——避免了「镜子里好看的颜色，染膏买不到」的断层。">4</div>
+                  </div>
+                  <div class="card">
+                    <div class="t3" style="display:flex;justify-content:space-between;align-items:baseline">染膏色号库 <span class="mut">暖调肤色推荐已高亮</span></div>
+                    <div class="cgrid" id="colorGrid"></div>
+                  </div>
+                  <div class="col2">
+                    <div class="card">
+                      <div class="t3">染法与工艺</div>
+                      <div class="chips">
+                        <span class="pill hot">全染</span><span class="pill">面部提亮挑染</span><span class="pill">银丝渐变</span>
+                      </div>
+                      <p class="mut" style="margin-top:16px">当前方案：<b style="color:var(--brand-2)" id="colorNow">—</b>。挑染会先做 3 束试色，确认无误再全头操作。</p>
+                    </div>
+                    <div class="card">
+                      <div class="t3">显色提示 · 来自检测报告</div>
+                      <p class="p" style="margin-bottom:14px">肤色暖调 · 明度中 —— 建议冷调或中性调压黄；<b>避免高饱和红棕</b>与<b>过浅冷灰</b>，两者在暖黄皮上容易显暗沉。</p>
+                      <div class="chips"><span class="pill hot">推荐 9/16 冷雾灰</span><span class="pill hot">推荐 5/43 栗铜金</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 对比 · 前后同屏（中性灰底） -->
+                <div class="ov" id="ov-compare">
+                  <div class="card">
+                    <div class="t3" style="display:flex;justify-content:space-between;align-items:baseline">前后对比 · 同屏 <span class="mut">中性灰底 · 避免界面色干扰显色判断</span></div>
+                    <div class="cmp">
+                      <div class="cmpane" id="cmpA"><span class="tag">当前</span></div>
+                      <div class="cmpane after" id="cmpB"><span class="tag">方案</span></div>
+                    </div>
+                    <div class="chips" style="margin-top:18px">
+                      <span class="pill hot">发色明度 +2 级</span><span class="pill hot">卷度 中卷</span><span class="pill">肤色适配 提升</span><span class="pill">视觉减龄 3 岁</span>
+                    </div>
+                    <div class="row2" style="margin-top:20px">
+                      <button class="btn" onclick="go('plan')">生成方案卡</button>
+                      <button class="btn ghost" style="width:auto;padding:0 30px" onclick="go('cut')">继续调整</button>
+                    </div>
+                    <div class="pin" style="left:16px;top:22px" data-note="同屏对比是说服顾客的关键一步：左「当前」是顾客真实发况，右「方案」是试戴结果。两屏共用中性灰底，保证左右两侧的显色判读条件完全一致。">5</div>
+                  </div>
+                </div>
+
+                <!-- 方案 · 方案卡 -->
+                <div class="ov" id="ov-plan">
+                  <div class="card hero">
+                    <div class="t1">生成方案卡</div>
+                    <p class="p">把这次的形象诊断与试戴结果整理成一张卡，一键发给顾客 —— 离店后仍可回看、转发与预约。</p>
+                    <div class="pin" style="left:16px;top:22px" data-note="方案卡是「离店转化」的载体：顾客带走的不是口头建议，而是一张可转发、可预约的卡片，把一次进店变成一条可持续的线索。">6</div>
+                  </div>
+                  <div class="card">
+                    <div class="t3">方案卡预览</div>
+                    <div class="plancard">
+                      <div class="pc-head">
+                        <div class="pc-img" id="pcImg"></div>
+                        <div class="pc-tx">
+                          <b id="pcName">—</b>
+                          <small id="pcMeta">—</small>
+                        </div>
+                      </div>
+                      <div class="pc-rows" id="pcRows"></div>
+                      <div class="pc-foot"><span>LUMIÈRE 沙龙 · 本季形象方案</span><span id="pcCode">PC-2418</span></div>
+                    </div>
+                    <div class="row2" style="margin-top:20px">
+                      <button class="btn" onclick="sendPlan()">发给顾客</button>
+                      <button class="btn ghost" style="width:auto;padding:0 30px" onclick="toast('方案卡已保存到门店相册')">保存</button>
+                    </div>
+                  </div>
+                  <div class="col2">
+                    <div class="card" style="text-align:center">
+                      <div class="t3" style="text-align:left">扫码带走方案</div>
+                      <p class="p" style="text-align:left;margin-bottom:16px">顾客扫码即可在手机上查看方案卡、肤质报告与预约入口。</p>
+                      <div style="display:flex;justify-content:center"><div class="qr" id="qr"></div></div>
+                      <p class="mut" style="margin:14px 0 16px;text-align:left">方案编号 <b style="color:var(--brand-2)">PC-2418</b> · 有效期 7 天</p>
+                      <div class="chips" style="justify-content:center"><span class="pill">企业微信</span><span class="pill">短信</span><span class="pill">沙龙小程序</span></div>
+                    </div>
+                    <div class="card">
+                      <div class="t3">方案明细</div>
+                      <ul class="kvlist" id="pcList"></ul>
+                      <button class="btn sm" style="margin-top:16px" onclick="go('book')">拿着方案去预约</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 预约 · 发型师 -->
+                <div class="ov" id="ov-book">
+                  <div class="card">
+                    <div class="t3">预约发型师 · 档期实时同步</div>
+                    <div class="store">
+                      <div class="pin-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+                      <div style="flex:1"><b>LUMIÈRE 沙龙 · 上海静安店</b><small>距你 0.8km · 营业至 22:00 · 档期与门店排班系统同步</small></div>
+                    </div>
+                    <div id="stylistList"></div>
+                    <div class="pin" style="left:16px;top:22px" data-note="预约数据来自门店排班系统，只展示真实可约的发型师与时段。镜子给出的方案可以当场锁定到具体的人和钟点，避免「回去再约就没档期」。">7</div>
+                  </div>
+                  <div class="card">
+                    <div class="t3" style="display:flex;justify-content:space-between;align-items:baseline">选择时段 <span class="mut" id="slotDate">今天 · 10 月 16 日</span></div>
+                    <div class="slots" id="slotList"></div>
+                  </div>
+                  <div class="card">
+                    <div class="t3">服务项目 · 来自当前方案</div>
+                    <div id="svcList"></div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin:18px 0 20px">
+                      <span class="mut">预估合计（含发型师服务费）</span>
+                      <b style="font-size:var(--f-xl);font-weight:800;color:var(--brand-2)" id="bkTotal">¥0</b>
+                    </div>
+                    <button class="btn" onclick="confirmBook()">确认预约</button>
+                    <div id="bkDone" style="display:none;margin-top:20px">
+                      <div class="notice"><b>预约成功 ·</b> <span id="bkDoneText">—</span></div>
+                      <div class="row2" style="margin-top:16px">
+                        <button class="btn sm ghost" onclick="go('plan')">查看方案卡</button>
+                        <button class="btn sm ghost" onclick="toast('已发送到顾客企业微信 · 含地址与导航')">发送到店提醒</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card tinted">
+                    <div class="t3">顺手带走 · 门店现货</div>
+                    <p class="p" style="margin-bottom:16px">把方案里的染膏与居家固色产品一起带走，门店现货实时校验。</p>
+                    <div class="inv" id="bkInv"></div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- 手势反馈 -->
+              <div class="gflash" id="gflash">
+                <div class="box">
+                  <svg viewBox="0 0 24 24"><path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M10 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M13 11V6.5a1.5 1.5 0 0 1 3 0V13"/><path d="M16 12.5c1.2-.4 2.6.3 3 1.4.5 1.3-.3 2.4-1.6 3.6-1.6 1.5-3.4 2.5-5.9 2.5-3.6 0-5-2-6.2-4.4L4 13.6c-.6-1.2.2-2.3 1.4-2.5.9-.2 1.7.3 2.1 1.1"/></svg>
+                  <div><b id="gTitle">已识别手势</b><small id="gSub">挥手 · 换发型</small></div>
+                </div>
+              </div>
+
+              <!-- 底部手势 / 语音提示 -->
+              <div class="hintbar">
+                <div class="mic">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 12a6 6 0 0 0 12 0M12 18v3"/></svg>
+                </div>
+                <div class="txt">
+                  <b>挥手换发型 · 左右挥换风格 · 上下挥调卷度 · 握拳收藏。</b>
+                  <small>坐姿识别 0.5-1.2 米 · 全程无接触 · 手势为主，语音与触控为辅</small>
+                </div>
+                <button class="act" id="mirrorBtn" onclick="enableMirror()">开启实时镜面</button>
+              </div>
+
+            </div>
+          </div>
+          <div class="walllabel">独立壁挂安装 · 无底座 · 铝合金框体 + 钣金后盖</div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="panel" id="panel"></aside>
+  </div>
+</section>
+<!-- ================= PLAN ================= -->
+<section class="view" id="viewPlan">
+  <div class="doc">
+    <div class="doc-title">
+      <h1>AI 美发魔镜 · 产品与交互方案</h1>
+      <p>面向沙龙的独立壁挂工位镜：三光谱 AI 肤质检测、发型与发色虚拟试戴、烫染效果预览、前后对比同屏、方案卡与预约闭环<br>镜面 高 100-120cm × 宽 70-80cm · 21.5-32" 竖屏 9:16</p>
+      <div class="meta">内部评审版 v0.1 · 2026</div>
+    </div>
+
+    <section class="blk">
+      <h2><span class="no">00</span>镜面交互原则（本原型的设计约束）</h2>
+      <p class="lead">这是一面挂在沙龙<b>工位前的独立壁挂镜</b>，不是手机 App，也不是平板。顾客双手常拿着包或手机，且正在照镜子，因此交互以<b>隔空手势为主、语音为辅、触控兜底</b>——界面必须按「一米 UI」重做，而不是把 App 放大。</p>
+      <div class="grid2">
+        <div class="mini"><h4><span class="dotc"></span>镜面即界面</h4><p>中央默认保留<b>实时镜面影像</b>，试戴模型与建议以深色玻璃浮层挂在四周，不铺满整屏。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>隔空手势为主</h4><p>挥手换发型、左右挥换风格、上下挥调卷度、握拳收藏；全程<b>无需触碰屏幕</b>。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>一米可读</h4><p>正文基准 ≥24px（镜面画布），标题 42-58px，数字 92px+；触控目标高度 ≥66px。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>贴边竖向导航</h4><p>用左缘细长竖向模块栏替代手机底部 tab 栏；<b>无状态栏、无刘海、无信号电量</b>。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>中性灰判读区</h4><p><b>肤质检测与前后对比</b>两屏强制切到中性灰底——任何界面色都会干扰肤色与发色的判读。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>入座即启动</h4><p>顾客坐下自动唤醒，并自动进入「检测 → 试戴」分支，不弹广告、不做前置引导。</p></div>
+      </div>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">01</span>产品定位与场景</h2>
+      <p class="lead">场景锁定<b>沙龙工位（独立壁挂形态）</b>：顾客坐下后有一段等待发型师的空档，而发型师往往只能凭经验判断肤色与发质。魔镜把这段空档变成一次<b>形象诊断</b>，并把诊断结果一路带到试戴、方案卡与预约。</p>
+      <div class="grid2">
+        <div class="mini"><h4><span class="dotc"></span>角色定位</h4><p>从「理发店里的镜子」升维为<b>工位上的形象诊断台 + 服务转化入口</b>。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>核心价值</h4><p>看得准（三光谱肤质检测）、试得多（发型发色随意换）、说得清（前后对比 + 方案卡）、约得上（档期当场锁定）。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>关键动作</h4><p>顾客<b>坐到镜前</b> → 自动触发 AI 肤质检测与发型试戴。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>交付形态</h4><p>独立壁挂一体机，贴墙安装无底座，不占用工位台面。</p></div>
+      </div>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">02</span>硬件规格</h2>
+      <p class="lead">独立壁挂款，镜面外形 <b>高 100-120cm × 宽 70-80cm</b>，内置 <b>21.5-32" 竖屏 9:16（1080P / 4K）触控屏</b>。原型按 9:16 逻辑画布 900×1600 搭建。</p>
+      <table>
+        <tr><th>项目</th><th>规格</th><th>对交互的意义</th></tr>
+        <tr class="hl"><td><b>外形 / 屏比</b></td><td><b>镜面 高 100-120cm × 宽 70-80cm</b>，屏 21.5-32" 竖屏 <b>9:16</b></td><td>坐姿正对可覆盖面部到肩部，原型画布 900×1600</td></tr>
+        <tr><td>显示</td><td>21.5-32" 1080P / 4K 触控屏 · 竖屏 9:16</td><td>发丝与毛孔细节需高分辨率承载</td></tr>
+        <tr><td>系统</td><td>Android 11+ · 4GB RAM + 64GB ROM 起</td><td>支持本地渲染与离线试戴</td></tr>
+        <tr class="hl"><td><b>摄像头</b></td><td><b>1200 万像素以上 RGB + UV + PL 三光谱高清摄像头</b></td><td>肤质级拍摄：毛孔 / 色斑 / 红斑分层成像</td></tr>
+        <tr class="hl"><td><b>补光</b></td><td><b>7200K 专业显色补光灯 · Ra&gt;90</b></td><td>高显色指数，发色与肤色还原不偏</td></tr>
+        <tr><td>功率</td><td>≤80W</td><td>壁挂取电，工位无需额外布线改造</td></tr>
+        <tr><td>连接</td><td>WiFi 5 / 6 + BT 5.0</td><td>门店档期、库存与会员数据实时同步</td></tr>
+        <tr><td>交互</td><td>隔空手势 + 语音 + 触控</td><td>手势为核心，语音辅助，触控兜底</td></tr>
+        <tr><td>结构与安装</td><td>钢化玻璃 + 铝合金框体 + 钣金后盖 · <b>独立壁挂</b></td><td>无底座、无立式支架，贴墙安装不占工位</td></tr>
+      </table>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">03</span>沙龙工位动线与安装</h2>
+      <p class="lead">工位镜<b>独立壁挂</b>在工位前墙面，正对座椅，顾客坐下后视线与镜面垂直。<b>坐姿动线</b>决定唤醒时机与手势识别区。</p>
+      <div class="lane">
+        <div class="stepbox"><div class="idx">STEP 01</div><h4>入座 · 唤醒</h4><p>顾客坐下，镜面 0.3s 内由待机亮起。</p></div>
+        <div class="stepbox"><div class="idx">STEP 02</div><h4>检测 · 5 秒</h4><p>三光谱采集，输出肤质报告与肤色基调。</p></div>
+        <div class="stepbox"><div class="idx">STEP 03</div><h4>试戴 · 手势</h4><p>挥手换发型、左右挥换风格、上下挥调卷度。</p></div>
+        <div class="stepbox"><div class="idx">STEP 04</div><h4>对比 · 同屏</h4><p>中性灰底前后对比，说服力最强的一屏。</p></div>
+        <div class="stepbox"><div class="idx">STEP 05</div><h4>方案 · 带走</h4><p>生成方案卡，发给顾客 / 扫码带走。</p></div>
+        <div class="stepbox"><div class="idx">STEP 06</div><h4>预约 · 锁定</h4><p>当场约定发型师与时段，转化闭环。</p></div>
+      </div>
+      <div class="grid2" style="margin-top:18px">
+        <div class="mini"><h4><span class="dotc"></span>安装尺寸</h4><p>镜面 100-120cm × 70-80cm 壁挂，镜心建议离地 110-125cm，与坐姿视线齐平。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>手势识别区</h4><p>座椅前方 <b>0.5-1.2m</b> 为手势有效区，超出范围时镜面提示「请坐近一点」。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>取电与运维</h4><p>壁挂背板走线，单点取电 ≤80W；门店端可远程下发当季主推发型与染膏色板。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>多人场景</h4><p>陪同好友可共同观看试戴画面；识别区仅响应主座位，避免隔壁工位误触发。</p></div>
+      </div>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">04</span>隔空手势交互规范（无接触）</h2>
+      <p class="lead">手势是<b>第一交互方式</b>：顾客双手常拿着包或手机，且正在照镜子。四式手势覆盖试戴主循环，语音与触控作为辅助与兜底。</p>
+      <table>
+        <tr><th>手势</th><th>动作</th><th>界面反馈</th><th>辅助方式</th></tr>
+        <tr class="hl"><td><b>挥手</b></td><td>快速左右挥动一次</td><td>整屏手势提示浮层 + 切换下一款发型</td><td>语音「换一个」/ 触控按钮</td></tr>
+        <tr><td><b>左右挥</b></td><td>指向左 / 右并停留</td><td>发型条横向滚动并高亮风格</td><td>左右箭头按钮</td></tr>
+        <tr><td><b>上下挥</b></td><td>手掌上 / 下移动</td><td>卷度在 直 / 微卷 / 大卷 间切换</td><td>卷度芯片点选</td></tr>
+        <tr><td><b>握拳</b></td><td>握拳 1 秒</td><td>收藏方案，图标实心 + 轻提示音</td><td>语音「收藏这个」</td></tr>
+      </table>
+      <div class="grid2" style="margin-top:18px">
+        <div class="mini"><h4><span class="dotc"></span>识别距离</h4><p>坐姿 0.5-1.2m 最佳识别区；超出范围提示「请坐近一点」。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>容错与防误触</h4><p>手势需持续 ≥0.3s 且幅度达标才触发；相邻两次手势设 0.5s 冷却。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>语音辅助</h4><p>底部常驻语音入口；「换一个 / 调卷度 / 收藏 / 预约」与手势等价。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>可发现性</h4><p>首次进入试戴即展示手势提示，并在每次成功后给出明确反馈。</p></div>
+      </div>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">05</span>检测 → 试戴 → 对比 → 方案卡 → 预约 全链路</h2>
+      <p class="lead">从「坐下来」到「约上发型师」的完整链路，其中<b>三光谱肤质检测</b>与<b>前后对比 / 方案卡</b>是三个关键说服节点。</p>
+      <div class="chain">
+        <span class="act">入座唤醒</span><span class="act">三光谱肤质检测</span><span>发型虚拟试戴</span><span>发色 · 染膏色号</span><span>烫染效果预览</span><span class="act">前后对比同屏</span><span class="act">方案卡 / 发给顾客</span><span>预约发型师 · 锁定档期</span>
+      </div>
+      <div class="grid2">
+        <div class="mini"><h4><span class="dotc"></span>肤质检测链路</h4><p>三光谱摄像头同步采集 RGB / UV / PL 三层影像 → 7200K 高显色补光校准 → 输出肤色基调、水分、油分、毛孔、色斑、敏感度六项指标 → 转成<b>发色适配建议</b>。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>试戴与预览链路</h4><p>检测结果自动带入发型库：按性别与脸型推荐；手势换发型、发色、卷度，实时预览烫染效果，避免「烫完才知道不合适」。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>方案卡链路</h4><p>把前后对比、发色色号、卷度与预算整理成一张卡，一键发给顾客企业微信 / 短信，或扫码带走，离店后仍可回看与预约。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>预约链路</h4><p>镜面读取门店排班与染膏现货，只呈现<b>真实可约的发型师与时段</b>；选定后当场锁定，缺货时给出替代色号或调货。</p></div>
+      </div>
+      <div style="margin-top:20px">
+        <div class="hbar-doc t1"><div class="lbl"><span>预期：进店顾客检测覆盖率</span><b>85%</b></div><div class="track"><i style="width:85%"></i></div></div>
+        <div class="hbar-doc t2"><div class="lbl"><span>预期：试戴后当场预约率</span><b>42%</b></div><div class="track"><i style="width:42%"></i></div></div>
+        <div class="hbar-doc t3"><div class="lbl"><span>预期：方案卡扫码带走率</span><b>61%</b></div><div class="track"><i style="width:61%"></i></div></div>
+      </div>
+      <p class="lead" style="margin-top:16px">价值闭环：<b>坐下来的空档 → 形象诊断 → 试戴说服 → 方案卡带走 → 档期锁定</b>。镜子既是诊断台，也是转化入口。</p>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">06</span>显色与灯光：为什么必须是 7200K / Ra&gt;90</h2>
+      <p class="lead">发色与肤色的判读高度依赖光源。沙龙工位顶灯多为暖光，会让冷色系发色显灰、暖棕显脏。本机以<b>7200K 高显色补光（Ra&gt;90）</b>建立稳定的判读基准。</p>
+      <table>
+        <tr><th>场景</th><th>光源</th><th>典型色偏</th><th>对发色 / 肤色的影响</th></tr>
+        <tr class="hl"><td>本机补光（基准）</td><td>7200K · Ra&gt;90</td><td>接近日光的中性显色</td><td>作为发色与肤色判读的基准条件</td></tr>
+        <tr><td>沙龙工位顶灯</td><td>暖光</td><td>整体偏黄，暖色显饱和</td><td>冷灰系显脏、暖棕显沉，需补光校正</td></tr>
+        <tr><td>商场白光</td><td>冷白 LED</td><td>偏蓝，蓝色更艳、暖色发灰</td><td>雾感色号更显冷，需提示顾客</td></tr>
+        <tr><td>户外日光</td><td>日光</td><td>颜色最真实，正午偏冷</td><td>作为「离店后真实呈现」的参照</td></tr>
+      </table>
+      <div class="grid2" style="margin-top:18px">
+        <div class="mini"><h4><span class="dotc"></span>为什么检测用中性灰底</h4><p>界面上的任何品牌色都会与被测肤色发生同时对比效应，导致判读偏差。因此检测与对比两屏统一使用<b>18% 中性灰</b>背景。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>三档灯光模拟</h4><p>原型提供「工位暖光 / 商场白光 / 户外日光」三档切换，用于向顾客说明<b>同一染膏在不同光源下的差异</b>，降低「回家发现色不对」的退货率。</p></div>
+      </div>
+    </section>
+
+    <section class="blk">
+      <h2><span class="no">07</span>落地与风险提示</h2>
+      <div class="grid2">
+        <div class="mini"><h4><span class="dotc"></span>灯光色偏</h4><p>各店工位灯光不一致。以 7200K 补光 + 中性灰底建立统一基准，并在方案卡中标注「离店后日光下的呈现」。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>肤质检测精度</h4><p>三光谱检测受妆容、油脂、角度影响。报告定位为<b>趋势参考</b>而非医学诊断，不做绝对化承诺，厚妆时提示「建议卸妆后复测」。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>隐私合规</h4><p>面部影像与肤质数据属敏感个人信息，须明示用途、本地处理、不上传原始影像，并提供一键清除。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>发型贴合度</h4><p>发际线与发量因人而异，2D 试戴需标注「示意效果」，正式操作前由发型师做发束实测确认。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>染膏与档期一致性</h4><p>色号库与排班需高频同步。低库存色号给出「仅剩 N 支」提示；档期被占用时即时刷新可选时段。</p></div>
+        <div class="mini"><h4><span class="dotc"></span>评测呈现</h4><p>本原型以浏览器打开即可评审；摄像头仅在本机 localhost / https 下生效，本地文件直开时自动降级为模拟镜面。<b>Chrome / Edge 为基准浏览器</b>。</p></div>
+      </div>
+    </section>
+
+    <section class="blk">
+      <div class="quote">
+        <p>美发魔镜的本质，是把工位前那段「等发型师」的空档，变成一次<b>看得准、试得出、说得清</b>的形象诊断。<br>顾客不必凭想象决定发色，也不必担心烫完才后悔——<br><b>坐下来，镜子先替你把底色看清楚。</b></p>
+        <small>检测是依据 · 试戴是说服 · 对比是决策 · 方案卡是资产 · 预约是闭环</small>
+      </div>
+    </section>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<svg width="0" height="0" style="position:absolute">
+<defs><linearGradient id="gradA" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#EBD9AC"/><stop offset="1" stop-color="#B4842F"/>
+</linearGradient></defs>
+</svg>
+<script>
+/* ================= mock 数据 ================= */
+const COLORS=[
+  {code:'1/0', name:'自然黑', hex:'#221C19', rec:false},
+  {code:'3/0', name:'深栗棕', hex:'#3A2A20', rec:true},
+  {code:'5/43',name:'栗铜金', hex:'#7A4A28', rec:true},
+  {code:'6/45',name:'暖栗红', hex:'#8A4030', rec:false},
+  {code:'7/3', name:'金棕',   hex:'#9A6A34', rec:true},
+  {code:'8/1', name:'浅灰棕', hex:'#8E7A68', rec:true},
+  {code:'9/16',name:'冷雾灰', hex:'#9AA0AC', rec:true},
+  {code:'10/0',name:'浅白金', hex:'#D6C6A6', rec:false},
+  {code:'6/0', name:'中性棕', hex:'#5A4030', rec:true},
+  {code:'12/61',name:'银紫灰',hex:'#B9B2C4', rec:false}
+];
+const HAIRS=[
+  {id:1, g:'w', name:'法式慵懒大波浪', len:'long', curl:2, fringe:'part', tag:'长发 · 大卷', style:'慵懒', price:1280, dur:'240min'},
+  {id:2, g:'w', name:'日系空气刘海锁骨发', len:'mid', curl:0, fringe:'full', tag:'中长 · 直', style:'甜美', price:880, dur:'180min'},
+  {id:3, g:'w', name:'港风复古波波头', len:'short', curl:1, fringe:'full', tag:'短发 · 微卷', style:'复古', price:780, dur:'150min'},
+  {id:4, g:'w', name:'高层次轻熟中发', len:'mid', curl:1, fringe:'side', tag:'中长 · 微卷', style:'轻熟', price:980, dur:'180min'},
+  {id:5, g:'w', name:'清冷长发直发', len:'long', curl:0, fringe:'part', tag:'长发 · 直', style:'清冷', price:1080, dur:'210min'},
+  {id:6, g:'w', name:'低马尾盘发', len:'long', curl:0, fringe:'part', tag:'长发 · 盘发', style:'优雅', price:660, dur:'120min'},
+  {id:7, g:'m', name:'商务利落短发', len:'crop', curl:0, fringe:'none', tag:'短发 · 直', style:'利落', price:420, dur:'60min'},
+  {id:8, g:'m', name:'韩式纹理烫', len:'short', curl:1, fringe:'side', tag:'短发 · 纹理', style:'潮流', price:780, dur:'150min'},
+  {id:9, g:'m', name:'经典复古背头', len:'short', curl:0, fringe:'none', tag:'短发 · 直', style:'复古', price:520, dur:'75min'},
+  {id:10,g:'m', name:'文艺慵懒中长发', len:'mid', curl:2, fringe:'side', tag:'中长 · 卷', style:'文艺', price:880, dur:'180min'},
+  {id:11,g:'m', name:'美式硬朗碎盖', len:'short', curl:0, fringe:'full', tag:'短发 · 直', style:'硬朗', price:460, dur:'60min'},
+  {id:12,g:'m', name:'清爽自然碎发', len:'crop', curl:0, fringe:'side', tag:'短发 · 直', style:'清新', price:380, dur:'45min'}
+];
+const CURL=['直发','微卷','大卷'];
+const SKIN=[
+  {k:'水分',v:42,n:'中偏低 · 建议补水面护',t:2},
+  {k:'油分',v:18,n:'偏干 · 屏障需加强',t:3},
+  {k:'敏感度',v:22,n:'低 · 耐受良好',t:1},
+  {k:'毛孔',v:55,n:'中等 · 鼻翼区明显',t:2},
+  {k:'色斑',v:30,n:'轻度 · 颧骨区少量',t:3}
+];
+const STYLISTS=[
+  {name:'ALEX', lv:'首席造型总监', tags:'剪 + 染 + 烫全案', price:680, slots:['14:30','16:00','18:30']},
+  {name:'林悦', lv:'资深染发师',   tags:'染 + 挑染 + 换色', price:420, slots:['15:00','17:30','19:00']},
+  {name:'陈默', lv:'造型师',       tags:'剪 + 烫 + 造型',   price:300, slots:['14:00','16:30','20:00']}
+];
+const BEFORE={len:'mid', curl:0, fringe:'part'};   /* 顾客真实发况 */
+const BEFORE_HEX='#463222';
+const FRINGE={
+  full:'M80 150C88 104 112 92 150 92C188 92 212 104 220 150C204 134 178 124 150 124C122 124 96 134 80 150Z',
+  side:'M78 152C86 102 110 90 150 90C190 90 214 102 222 152C208 124 174 106 150 114C120 122 92 134 78 152Z',
+  part:'M80 152C88 104 112 92 150 92C188 92 212 104 220 152C206 132 184 120 154 124L146 130C116 122 94 132 80 152Z',
+  none:''
+};
+const HLEN={crop:166, short:240, mid:302, long:372};
+
+/* ---- 发型轮廓：按长度 + 卷度生成路径 ---- */
+function hairPath(len,curl){
+  var hem=HLEN[len]||302, WL=80, WR=220;
+  var h=hem-58, c=Math.round(hem*0.44+34);
+  var p='M'+WL+' '+h+'C66 '+c+' 72 100 150 100C228 100 234 '+c+' '+WR+' '+h;
+  var x0=WR-20, x1=WL+20;
+  p+='C216 '+(hem-36)+' 210 '+(hem-14)+' '+x0+' '+hem;
+  if(curl>0){
+    var n=(curl===1?6:4), span=x0-x1, st=Math.round(span/n*100)/100, r=Math.round(st*(curl===1?0.36:0.5)*100)/100;
+    for(var i=0;i<n;i++) p+='a'+r+' '+r+' 0 0 1 -'+st+' 0';
+  }else{
+    p+='L'+x1+' '+hem;
+  }
+  p+='C90 '+(hem-14)+' 84 '+(hem-36)+' '+WL+' '+h+'Z';
+  return p;
+}
+function faceSVG(h,hex){
+  var d=hairPath(h.len,h.curl), f=FRINGE[h.fringe]||'';
+  return '<svg viewBox="0 0 300 400" class="head" preserveAspectRatio="xMidYMid slice">'+
+    '<path d="M20 400C30 330 92 300 150 300c58 0 120 30 130 100z" fill="#221B15"/>'+
+    '<rect x="132" y="240" width="36" height="54" rx="14" fill="#DDB894"/>'+
+    '<path d="'+d+'" fill="'+hex+'"/>'+
+    '<ellipse cx="150" cy="178" rx="56" ry="76" fill="#EFD2B6"/>'+
+    '<circle cx="127" cy="188" r="5.6" fill="#2E2620"/><circle cx="173" cy="188" r="5.6" fill="#2E2620"/>'+
+    '<path d="M115 170q12-8 26-2" stroke="#3E2F25" stroke-width="4.4" fill="none" stroke-linecap="round"/>'+
+    '<path d="M159 168q14-6 26 2" stroke="#3E2F25" stroke-width="4.4" fill="none" stroke-linecap="round"/>'+
+    '<path d="M136 222q14 11 28 0" stroke="#B4705F" stroke-width="4" fill="none" stroke-linecap="round"/>'+
+    (f?'<path d="'+f+'" fill="'+hex+'"/>':'')+
+  '</svg>';
+}
+
+/* ================= 状态 ================= */
+let hairGender='w', hairIdx=0, curlLevel=1, colorIdx=2, liked=false, detectDone=false, dtRunning=false;
+let dtTimer=null, gTimer=null, autoTimer=null, autoLeft=0;
+let stylistIdx=0, slotIdx=0, svcOn=[true,true,true];
+let curScreen='idle', annotOn=false;
+
+function hlist(){ return HAIRS.filter(function(h){return h.g===hairGender;}); }
+function byHairId(id){ return HAIRS.filter(function(h){return h.id===id;})[0]; }
+function svcList(){
+  var h=hlist()[hairIdx], c=COLORS[colorIdx];
+  return [
+    {k:'发型修剪 · '+h.name, s:h.tag+' · 参考时长 '+h.dur, v:h.price},
+    {k:'全染 · 色号 '+c.code+' '+c.name, s:'含染膏、试色与显色检测', v:480},
+    {k:'质感烫 · '+CURL[curlLevel], s:(curlLevel>0?'含造型与护理':'当前为直发，可加做'), v:curlLevel>0?380:0}
+  ];
+}
+function svcTotal(){ var t=0, sv=svcList(); sv.forEach(function(s,i){ if(svcOn[i]) t+=s.v; }); return t; }
+function bookTotal(){ return svcTotal()+STYLISTS[stylistIdx].price; }
+
+function scardHTML(h,on){
+  var hex=COLORS[colorIdx].hex;
+  return '<div class="scard'+(on?' on':'')+'" onclick="selectHair('+h.id+')">'+
+    '<div class="sface">'+faceSVG(h,hex)+'</div>'+
+    '<div class="sinfo"><b>'+h.name+'</b><small>'+h.tag+' · ¥'+h.price+'</small></div></div>';
+}
+
+/* ================= 试戴渲染 ================= */
+function renderCut(){
+  var arr=hlist(); if(!arr.length) return;
+  hairIdx=((hairIdx%arr.length)+arr.length)%arr.length;
+  var h=arr[hairIdx], c=COLORS[colorIdx];
+  var st=document.getElementById('hairStage');
+  if(st) st.innerHTML=faceSVG(h,c.hex)+'<span class="tag">'+h.tag+'</span><span class="tag2">'+CURL[curlLevel]+'</span>';
+  var el;
+  if(el=document.getElementById('cutName')) el.textContent=h.name;
+  if(el=document.getElementById('cutMeta')) el.textContent='发色 '+c.code+' '+c.name+' · '+CURL[curlLevel]+' · '+h.style+' 风格 · 建议先做 3 束试色';
+  if(el=document.getElementById('cutPrice')) el.textContent='¥'+h.price;
+  if(el=document.getElementById('cutDur')) el.textContent='时长 '+h.dur;
+  if(el=document.getElementById('cutTags')) el.innerHTML=
+    '<span class="pill hot">'+h.tag+'</span><span class="pill">'+c.code+' '+c.name+'</span><span class="pill">'+CURL[curlLevel]+'</span><span class="pill">检测报告已带入</span>';
+  if(el=document.getElementById('cutStrip')) el.innerHTML=arr.map(function(x,i){return scardHTML(x,i===hairIdx);}).join('');
+  renderSwatch();
+}
+function swHTML(c,i){
+  return '<div class="swatch'+(i===colorIdx?' on':'')+'" onclick="selectColor('+i+')">'+
+    '<div class="c" style="background:'+c.hex+'"></div>'+
+    '<div class="n"><b>'+c.code+'</b>'+c.name+(c.rec?' <span style="color:var(--gold)">荐</span>':'')+'</div></div>';
+}
+function renderSwatch(){
+  var el=document.getElementById('cutSwatch'); if(!el) return;
+  el.innerHTML=COLORS.slice(0,6).map(function(c,i){return swHTML(c,i);}).join('');
+}
+function renderColorGrid(){
+  var el=document.getElementById('colorGrid'); if(!el) return;
+  el.innerHTML=COLORS.map(function(c,i){return swHTML(c,i);}).join('');
+  var now=document.getElementById('colorNow');
+  if(now) now.textContent=COLORS[colorIdx].code+' '+COLORS[colorIdx].name;
+}
+function selectHair(id){
+  var h=byHairId(id); if(!h) return;
+  if(h.g!==hairGender) setHairGender(h.g,true);
+  var i=hlist().map(function(x){return x.id;}).indexOf(id);
+  if(i>=0) hairIdx=i;
+  curlLevel=h.curl; svcOn[2]=curlLevel>0;
+  renderCut();
+  toast('已试戴「'+h.name+'」');
+}
+function setHairGender(g,silent){
+  hairGender=g;
+  var w=document.getElementById('hgW'), m=document.getElementById('hgM');
+  if(w) w.className=g==='w'?'pill hot':'pill';
+  if(m) m.className=g==='m'?'pill hot':'pill';
+  var tag=document.getElementById('cutGenderTag'); if(tag) tag.textContent=g==='w'?'女发':'男发';
+  hairIdx=0; var arr=hlist(); curlLevel=arr[0].curl; svcOn[2]=curlLevel>0;
+  renderCut();
+  if(!silent) toast(g==='w'?'已切换到女发发型库':'已切换到男发发型库');
+}
+function selectColor(i){
+  colorIdx=i; renderCut(); renderColorGrid();
+  toast('发色已切换 · '+COLORS[i].code+' '+COLORS[i].name);
+}
+
+/* ================= 隔空手势 ================= */
+const GST={
+  next:{t:'已识别手势 · 挥手',  s:'切换到下一款发型'},
+  prev:{t:'已识别手势 · 左右挥', s:'切换到上一款发型'},
+  curl:{t:'已识别手势 · 上下挥', s:'调整卷度'},
+  like:{t:'已识别手势 · 握拳',   s:'收藏 / 取消收藏方案'}
+};
+function gesture(kind){
+  var g=GST[kind]||GST.next;
+  var t=document.getElementById('gTitle'), s=document.getElementById('gSub');
+  if(t) t.textContent=g.t; if(s) s.textContent=g.s;
+  var box=document.getElementById('gflash');
+  if(box){ box.classList.add('on'); clearTimeout(gTimer); gTimer=setTimeout(function(){box.classList.remove('on');},1300); }
+  var arr=hlist();
+  if(kind==='next'){ hairIdx=(hairIdx+1)%arr.length; curlLevel=arr[hairIdx].curl; }
+  else if(kind==='prev'){ hairIdx=(hairIdx-1+arr.length)%arr.length; curlLevel=arr[hairIdx].curl; }
+  else if(kind==='curl'){ curlLevel=(curlLevel+1)%3; }
+  else if(kind==='like'){ liked=!liked; }
+  svcOn[2]=curlLevel>0;
+  renderCut();
+  if(kind==='like') toast(liked?'握拳 · 已收藏当前方案':'握拳 · 已取消收藏');
+  else if(kind==='curl') toast('上下挥 · 卷度已切换为 '+CURL[curlLevel]);
+  else toast('挥手换发型 · 已切换到「'+arr[hairIdx].name+'」');
+}
+
+/* ================= 检测 ================= */
+function renderBars(){
+  var box=document.getElementById('dtBars'); if(!box) return;
+  box.innerHTML=SKIN.map(function(s){
+    return '<div class="hbar t'+s.t+'"><div class="lbl"><b>'+s.k+'</b><span>'+s.v+'% · '+s.n+'</span></div><div class="track"><i data-w="'+s.v+'" style="width:0"></i></div></div>';
+  }).join('');
+  requestAnimationFrame(function(){
+    setTimeout(function(){
+      var is=box.querySelectorAll('.track i');
+      for(var i=0;i<is.length;i++) is[i].style.width=is[i].getAttribute('data-w')+'%';
+    },80);
+  });
+}
+function startDetect(){
+  cancelAuto();
+  if(dtRunning) return;
+  dtRunning=true;
+  go('detect');
+  var res=document.getElementById('dtResult'); if(res) res.style.display='none';
+  var arc=document.getElementById('dtArc'), pct=document.getElementById('dtPct'), txt=document.getElementById('dtText');
+  var lis=[].slice.call(document.querySelectorAll('#dtSteps li'));
+  lis.forEach(function(li){li.classList.remove('ok');});
+  var t=0, total=5200;
+  var msgs=['请正对镜面，保持面部自然放松…','RGB 可见光成像 · 采集肤色基调…','UV 紫外线成像 · 分析毛孔与角质…','PL 偏振光成像 · 识别色斑与红斑…','7200K 高显色补光 · 色彩校准…','肤质指标建模完成'];
+  clearInterval(dtTimer);
+  dtTimer=setInterval(function(){
+    t+=100; var p=Math.min(100,Math.round(t/total*100));
+    if(arc) arc.setAttribute('stroke-dashoffset',553-553*p/100);
+    if(pct) pct.textContent=p;
+    if(txt) txt.textContent=msgs[Math.min(5,Math.floor(p/17))];
+    lis.forEach(function(li,i){ li.classList.toggle('ok', p>=100 || i<Math.round(p/20)); });
+    if(p>=100){
+      clearInterval(dtTimer); dtRunning=false; detectDone=true;
+      lis.forEach(function(li){li.classList.add('ok');});
+      if(res) res.style.display='block';
+      renderBars();
+      toast('检测完成 · 肤色暖调 · 水分 42% · 建议冷调发色');
+    }
+  },100);
+}
+/* ---- 入座自动流程 ---- */
+function restartAuto(){
+  cancelAuto();
+  var bar=document.getElementById('autoBar'); if(!bar) return;
+  bar.style.display='flex'; autoLeft=4;
+  var sub=document.getElementById('autoSub');
+  if(sub) sub.textContent=autoLeft+' 秒后自动开始 AI 肤质检测…';
+  autoTimer=setInterval(function(){
+    autoLeft--;
+    var s=document.getElementById('autoSub');
+    if(s) s.textContent=autoLeft+' 秒后自动开始 AI 肤质检测…';
+    if(autoLeft<=0){ cancelAuto(); startDetect(); }
+  },1000);
+}
+function cancelAuto(){
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+  var bar=document.getElementById('autoBar'); if(bar) bar.style.display='none';
+}
+function simulateSit(){ setView('proto'); go('idle'); toast('已模拟顾客入座 · 自动流程已启动'); }
+/* ================= 首页热门 ================= */
+function renderHome(){
+  var el=document.getElementById('homeStyles'); if(!el) return;
+  var ids=[1,2,4,5,7,8], cur=hlist()[hairIdx].id;
+  el.innerHTML=ids.map(function(id){ var h=byHairId(id); return scardHTML(h, h.id===cur); }).join('');
+}
+
+/* ================= 前后对比 ================= */
+function renderCompare(){
+  var a=document.getElementById('cmpA'), b=document.getElementById('cmpB');
+  if(a) a.innerHTML='<span class="tag">当前</span><span class="subtag">真实发况 · 中长发直发 · '+BEFORE_HEX+'</span>'+faceSVG(BEFORE,BEFORE_HEX);
+  var h=hlist()[hairIdx], c=COLORS[colorIdx];
+  if(b) b.innerHTML='<span class="tag">方案</span><span class="subtag">'+h.tag+' · '+c.code+' '+c.name+'</span>'+faceSVG(h,c.hex);
+}
+
+/* ================= 方案卡 ================= */
+function renderPlan(){
+  var h=hlist()[hairIdx], c=COLORS[colorIdx], s=STYLISTS[stylistIdx];
+  var img=document.getElementById('pcImg'); if(img) img.innerHTML=faceSVG(h,c.hex);
+  var nm=document.getElementById('pcName'); if(nm) nm.textContent=h.name+' · '+c.code+' '+c.name;
+  var mt=document.getElementById('pcMeta');
+  if(mt) mt.textContent=h.tag+' · '+CURL[curlLevel]+' · 参考时长 '+h.dur+' · 适配暖调肤色';
+  var rows=document.getElementById('pcRows');
+  if(rows) rows.innerHTML=[
+    ['肤质基调','暖调 · 明度中 · 对比度低'],
+    ['推荐色号',c.code+' '+c.name+(c.rec?'（肤色适配）':'')],
+    ['修剪工艺',h.style+' 风格 · 高层次 · '+h.tag],
+    ['卷度 / 烫发',CURL[curlLevel]+(curlLevel>0?' · 含质感烫':' · 本单不含烫')],
+    ['建议发型师',s.name+' · '+s.lv],
+    ['预估价格','¥'+bookTotal()+' 起（含服务费）']
+  ].map(function(r){return '<div class="r"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>';}).join('');
+  var list=document.getElementById('pcList'), sv=svcList();
+  if(list) list.innerHTML=sv.map(function(x){return '<li><span>'+x.k+'</span><b>¥'+x.v+'</b></li>';}).join('')+
+    '<li><span>发型师服务费 · '+s.name+'</span><b>¥'+s.price+'</b></li>'+
+    '<li><span>合计</span><b>¥'+bookTotal()+'</b></li>';
+}
+function sendPlan(){
+  toast('方案卡已发送至顾客企业微信 · 含肤质报告与预约入口');
+}
+
+/* ================= 预约 ================= */
+const ALLSLOTS=['14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00'];
+const BOOKED={0:['15:00','17:00'],1:['14:30','16:30','18:00'],2:['15:30','17:30']};
+function renderStylists(){
+  var el=document.getElementById('stylistList'); if(!el) return;
+  el.innerHTML=STYLISTS.map(function(s,i){
+    return '<div class="stylist'+(i===stylistIdx?' on':'')+'" onclick="selectStylist('+i+')">'+
+      '<div class="av">'+s.name.slice(0,1)+'</div>'+
+      '<div class="tx"><b>'+s.name+'</b><small>'+s.lv+' · '+s.tags+'</small></div>'+
+      '<div class="pv">¥'+s.price+'</div></div>';
+  }).join('');
+}
+function renderSlots(){
+  var el=document.getElementById('slotList'); if(!el) return;
+  var s=STYLISTS[stylistIdx], off=BOOKED[stylistIdx]||[];
+  el.innerHTML=ALLSLOTS.map(function(t,i){
+    var no=off.indexOf(t)>=0, hot=s.slots.indexOf(t)>=0;
+    return '<button class="'+(i===slotIdx?'on':'')+(no?' off':'')+'"'+(no?' disabled':' onclick="selectSlot('+i+')"')+'>'+
+      t+(hot?' · 推荐':'')+'</button>';
+  }).join('');
+}
+function renderSvc(){
+  var el=document.getElementById('svcList'); if(!el) return;
+  var sv=svcList();
+  el.innerHTML=sv.map(function(s,i){
+    var dis=s.v<=0;
+    return '<div class="svc'+(svcOn[i]&&!dis?' on':'')+'"'+(dis?'':' onclick="toggleSvc('+i+')"')+'>'+
+      '<div class="ck"></div><div class="tx"><b>'+s.k+'</b><small>'+s.s+'</small></div>'+
+      '<div class="pv">'+(dis?'—':'¥'+s.v)+'</div></div>';
+  }).join('');
+  var t=document.getElementById('bkTotal'); if(t) t.textContent='¥'+bookTotal();
+}
+function renderInv(){
+  var el=document.getElementById('bkInv'); if(!el) return;
+  var c=COLORS[colorIdx];
+  var rows=[
+    {n:'染膏 '+c.code, s:'门店现货', k:'ok'},
+    {n:'固色洗发水', s:'库存充足', k:'ok'},
+    {n:'蛋白发膜', s:'仅剩 3 件', k:'low'},
+    {n:'免洗造型乳', s:'暂时缺货', k:'out'}
+  ];
+  el.innerHTML=rows.map(function(r){return '<div class="cel '+r.k+'"><b>'+r.n+'</b><small>'+r.s+'</small></div>';}).join('');
+}
+function renderBook(){ renderStylists(); renderSlots(); renderSvc(); renderInv(); }
+function selectStylist(i){
+  stylistIdx=i;
+  var off=BOOKED[i]||[], k=0; for(var j=0;j<ALLSLOTS.length;j++){ if(off.indexOf(ALLSLOTS[j])<0){ k=j; break; } }
+  slotIdx=k;
+  renderStylists(); renderSlots(); renderSvc();
+  toast('已选择发型师 '+STYLISTS[i].name+' · 档期已刷新');
+}
+function selectSlot(i){
+  if((BOOKED[stylistIdx]||[]).indexOf(ALLSLOTS[i])>=0) return;
+  slotIdx=i; renderSlots(); toast('已选择时段 今天 '+ALLSLOTS[i]);
+}
+function toggleSvc(i){
+  if(svcList()[i].v<=0){ toast('当前为直发 · 需先选择卷度才能加做质感烫'); return; }
+  svcOn[i]=!svcOn[i]; renderSvc();
+}
+function confirmBook(){
+  var s=STYLISTS[stylistIdx];
+  var done=document.getElementById('bkDone'), tx=document.getElementById('bkDoneText');
+  if(done) done.style.display='block';
+  if(tx) tx.textContent='今天 '+ALLSLOTS[slotIdx]+' · '+s.name+'（'+s.lv+'）· 预估 ¥'+bookTotal()+' · 工位 03';
+  toast('预约成功 · 已同步至门店排班系统');
+}
+
+/* ================= 导航 ================= */
+const SCREENS=['idle','detect','cut','color','compare','plan','book'];
+function go(id){
+  curScreen=id;
+  var glass=document.getElementById('glass');
+  if(glass) glass.classList.toggle('neutral', id==='detect'||id==='compare');
+  var ovs=document.querySelectorAll('.stagearea .ov');
+  for(var i=0;i<ovs.length;i++) ovs[i].classList.toggle('on', ovs[i].id==='ov-'+id);
+  var bs=document.querySelectorAll('.rail button');
+  for(var j=0;j<bs.length;j++) bs[j].classList.toggle('on', bs[j].getAttribute('data-s')===id);
+  if(id==='idle') restartAuto(); else cancelAuto();
+  if(id==='idle') renderHome();
+  if(id==='cut') renderCut();
+  if(id==='color') renderColorGrid();
+  if(id==='compare') renderCompare();
+  if(id==='plan') renderPlan();
+  if(id==='book') renderBook();
+  renderPanel(id);
+}
+
+/* ================= 右侧说明面板 ================= */
+const PANEL={
+  idle:{ph:'00 / 镜面待机 · 入座唤醒', h2:'入座就唤醒，第一件事是形象诊断', go:['detect','开始 AI 肤质检测'],
+    lead:'待机画面不放广告。顾客落座后，座椅感应与 1200 万像素摄像头视觉判定同时触发，镜子自动亮起并进入「肤质检测 → 发型试戴」分支 —— 把等发型师的那几分钟变成高价值触点。',
+    kv:[['触发','座椅压力感应 + 视觉入座复核'],['唤醒','0.3s 亮屏，4s 后自动开始检测'],['交互','隔空手势为主，语音与触控为辅'],['形态','独立壁挂 · 无底座 · 工位正前方']],
+    tips:['双重判定避免误唤醒：压力感应负责"有人坐下"，视觉负责"确实是人脸"','坐姿识别距离 0.5–1.2m，覆盖正常坐姿与轻微前后晃动','自动流程可被顾客任意手势或触控中断，主动权始终在顾客手里']},
+  detect:{ph:'01 / AI 肤质检测', h2:'三光谱采集，5 秒出一份可讲解的报告', go:['cut','进入发型试戴'],
+    lead:'RGB 可见光 + UV 紫外 + PL 偏振三路成像，在 7200K 高显色补光下采集，输出水分、油分、敏感度、毛孔、色斑五项指标。报告的用途不是「卖护理」，而是给发型师一个可引用的事实依据。',
+    kv:[['采集','约 5 秒 · 五项指标建模'],['光谱','RGB / UV / PL 三光谱'],['补光','7200K · Ra>90 专业显色'],['界面','中性灰底，避免界面色干扰判读']],
+    tips:['检测全程语音播报进度，顾客不需要盯着数字看','报告结论落到"配色建议"上，可直接衔接下一步试戴','原始影像不上传云端，仅本机生成报告，顾客可一键清除']},
+  cut:{ph:'02 / 发型虚拟试戴', h2:'手势换发型，无接触、不脏手', go:['compare','看前后对比'],
+    lead:'以人脸模型为基底做发型蒙层试戴，间隔挥手即换下一款。四种手势覆盖试戴主循环：挥手换发型、左右挥换风格、上下挥调卷度、握拳收藏方案 —— 顾客手上拿着包或手机时也能操作。',
+    kv:[['发型库','12 款 · 男/女 × 长/中/短 × 风格'],['手势','挥 / 左右挥 / 上下挥 / 握拳'],['兜底','触控按钮与语音指令同时可用'],['灯光','可切换暖光 / 白光 / 日光看显色差异']],
+    tips:['发型库与门店可做的项目一一对应，镜子里的效果可当场兑现','灯光显色模拟专门解决「回家发现色不对」的纠纷高发点','当前方案的所有参数会被带入方案卡与预约单，不重复录入']},
+  color:{ph:'03 / 染膏色号', h2:'色号直接对齐门店染膏体系', go:['compare','回对比页看效果'],
+    lead:'色号库按门店真实染膏编号建立，并按检测报告的肤色基调标出适配项。顾客点选即刻试戴，避免了「镜子里好看的颜色，染膏买不到」的断层。',
+    kv:[['色号库','10 个色号 · 覆盖黑棕灰金四个色系'],['推荐','按肤色基调高亮 5 个适配色'],['工艺','全染 / 面部提亮挑染 / 银丝渐变'],['试色','挑染先做 3 束试色再全头操作']],
+    tips:['暖黄皮提示避开高饱和红棕与过浅冷灰，两者容易显暗沉','推荐标记来自检测报告，不是运营位的硬广','显色提示同时出现在对比页，方便发型师现场讲解']},
+  compare:{ph:'04 / 前后对比同屏', h2:'同屏对比，是说服顾客的关键一步', go:['plan','生成方案卡'],
+    lead:'左「当前」是顾客的真实发况，右「方案」是试戴结果，两屏共用中性灰底 —— 保证左右两侧的显色判读条件完全一致，不会因为一边亮一边暗而产生"看着更好"的错觉。',
+    kv:[['布局','左右同屏 · 中性灰底'],['左屏','真实发况基线'],['右屏','试戴方案结果'],['用途','发型师现场讲解的主画面']],
+    tips:['中性灰底是本页面的功能需求，不是审美选择：任何界面色都会干扰显色判断','对比页同时列出明度、卷度、肤色适配等结论，讲解有抓手','可直接从对比页进入方案卡，趁顾客满意当场推进']},
+  plan:{ph:'05 / 方案卡 · 离店转化', h2:'顾客带走的是一张可转发的方案卡', go:['book','拿着方案去预约'],
+    lead:'把形象诊断与试戴结果整理成一张卡，扫码或企业微信发给顾客。顾客离店后仍可回看、转发、预约 —— 一次进店因此变成一条可持续跟进的线索，而不是一句口头的建议。',
+    kv:[['载体','方案卡 + 二维码 + 企业微信'],['内容','肤质基调 / 色号 / 工艺 / 价格'],['有效期','7 天 · 到期前可再次预约'],['编号','PC-2418（本机生成）']],
+    tips:['方案卡上不出现"内部价"，对外展示的是门店标准价','扫码后同时看到肤质报告与预约入口，两个诉求一次承接','有效期设定为 7 天，是给顾客决策留缓冲，也制造温和的紧迫感']},
+  book:{ph:'06 / 预约 · 门店档期', h2:'档期与排班系统实时同步', go:['plan','回看方案卡'],
+    lead:'预约不写"稍后联系"，而是当场锁定发型师与钟点。可选时段来自门店真实排班数据，顾客不会遇到「回去再约就没档期」的落差。',
+    kv:[['门店','LUMIÈRE 沙龙 · 上海静安店'],['发型师','3 位 · 剪/染/烫能力标签可见'],['档期','实时同步 · 已约时段置灰'],['现货','染膏与居家固色产品实时校验']],
+    tips:['服务项目清单直接来自当前方案，勾选即改价，不是让顾客自己回忆','门店现货区顺手承接"带走固色产品"的连带需求','预约成功后自动推送地址与导航，减少到店前流失']}
+};
+function renderPanel(id){
+  var el=document.getElementById('panel'); if(!el) return;
+  var p=PANEL[id]||PANEL.idle;
+  el.innerHTML='<div class="ph">'+p.ph+'</div><h2>'+p.h2+'</h2><p class="lead">'+p.lead+'</p>'+
+    (p.kv&&p.kv.length?'<dl class="kv">'+p.kv.map(function(r){return '<dt>'+r[0]+'</dt><dd>'+r[1]+'</dd>';}).join('')+'</dl>':'')+
+    '<div class="divider"></div><ul class="tips">'+p.tips.map(function(t){return '<li>'+t+'</li>';}).join('')+'</ul>'+
+    (p.go?'<div class="divider"></div><span class="gotolink" onclick="go(\''+p.go[0]+'\')">'+p.go[1]+' →</span>':'');
+}
+
+/* ================= 视图切换 ================= */
+function setView(v){
+  document.getElementById('viewProto').classList.toggle('on',v==='proto');
+  document.getElementById('viewPlan').classList.toggle('on',v==='plan');
+  document.getElementById('tabProto').classList.toggle('on',v==='proto');
+  document.getElementById('tabPlan').classList.toggle('on',v==='plan');
+  window.scrollTo({top:0});
+  if(v==='plan') setTimeout(animateBars,80);
+}
+function animateBars(){
+  document.querySelectorAll('.hbar .track i, .hbar-doc .track i').forEach(function(el){
+    var w=el.style.width||'0%'; el.style.width='0';
+    requestAnimationFrame(function(){ setTimeout(function(){ el.style.width=w; },60); });
+  });
+}
+
+/* ================= 灯光显色 ================= */
+const LIGHTS=['t-warm','t-cold','t-day'];
+const LIGHTN=['工位暖光 3000K','商场白光 4000K','户外日光 6500K'];
+function setLight(i){
+  var g=document.getElementById('glass'); if(!g) return;
+  for(var k=0;k<LIGHTS.length;k++) g.classList.remove(LIGHTS[k]);
+  g.classList.add(LIGHTS[i]);
+  for(var j=0;j<LIGHTS.length;j++){ var b=document.getElementById('l'+j); if(b) b.classList.toggle('on', j===i); }
+  toast('灯光显色模拟 · '+LIGHTN[i]);
+}
+
+/* ================= 工具 ================= */
+function buildQR(){
+  var el=document.getElementById('qr'); if(!el) return;
+  var n=25, cell=7, seed=741852, g=[], y, x, i;
+  function rnd(){ seed=(seed*1103515245+12345)%2147483647; return Math.abs(seed)/2147483647; }
+  for(y=0;y<n;y++){ g[y]=[]; for(x=0;x<n;x++) g[y][x]=rnd()>0.5?1:0; }
+  function finder(ox,oy){
+    for(var yy=-1;yy<8;yy++) for(var xx=-1;xx<8;xx++){
+      var px=ox+xx, py=oy+yy; if(px<0||py<0||px>=n||py>=n) continue;
+      if(xx>=0&&xx<7&&yy>=0&&yy<7) g[py][px]=(xx===0||xx===6||yy===0||yy===6||(xx>=2&&xx<=4&&yy>=2&&yy<=4))?1:0;
+      else g[py][px]=0;
+    }
+  }
+  finder(0,0); finder(n-7,0); finder(0,n-7);
+  for(i=8;i<n-8;i++){ g[6][i]=i%2?1:0; g[i][6]=i%2?1:0; }
+  var s='<svg viewBox="0 0 '+(n*cell)+' '+(n*cell)+'" xmlns="http://www.w3.org/2000/svg">';
+  for(y=0;y<n;y++) for(x=0;x<n;x++) if(g[y][x]) s+='<rect x="'+(x*cell)+'" y="'+(y*cell)+'" width="'+cell+'" height="'+cell+'" fill="#15110C"/>';
+  el.innerHTML=s+'</svg>';
+}
+function enableMirror(){
+  var g=document.getElementById('glass'), v=document.getElementById('cam'), btn=document.getElementById('mirrorBtn');
+  if(!v||!g) return;
+  if(g.classList.contains('live')){
+    g.classList.remove('live'); try{ v.srcObject=null; }catch(e){}
+    if(btn) btn.textContent='开启实时镜面';
+    toast('已关闭实时镜面 · 回到模拟镜面');
+    return;
+  }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    toast('当前环境不支持摄像头 · 已保持模拟镜面（file:// 下浏览器会禁用）');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}}).then(function(st){
+    v.srcObject=st; var p=v.play(); if(p&&p.catch) p.catch(function(){});
+    g.classList.add('live');
+    if(btn) btn.textContent='关闭实时镜面';
+    toast('实时镜面已开启 · 影像仅在本机处理，不上传云端');
+  }).catch(function(){
+    toast('未能获取摄像头权限 · 已保持模拟镜面');
+  });
+}
+function toast(msg){
+  var t=document.getElementById('toast'); if(!t) return;
+  t.textContent=msg; t.classList.add('on');
+  clearTimeout(window.__tt);
+  window.__tt=setTimeout(function(){ t.classList.remove('on'); },2400);
+}
+function tickClock(){
+  var el=document.getElementById('clock'); if(!el) return;
+  var d=new Date();
+  el.textContent=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+}
+function toggleAnnot(){
+  annotOn=!annotOn;
+  document.body.classList.toggle('annot-on',annotOn);
+  var b=document.getElementById('annotBtn'); if(b) b.classList.toggle('on',annotOn);
+  toast(annotOn?'设计标注已开启 · 点击编号查看说明':'设计标注已关闭');
+}
+function fit(){
+  var dev=document.getElementById('device'), slot=document.querySelector('.slot-inner'), holder=document.querySelector('.mirror-slot');
+  if(!dev||!slot||!holder) return;
+  var availW=(holder.clientWidth||1000)-8;
+  var availH=Math.max(560, window.innerHeight-190);
+  var s=Math.min(1, availW/1024, availH/1760);
+  dev.style.transform='scale('+s+')';
+  dev.style.transformOrigin='top center';
+  slot.style.width=(1024*s)+'px';
+  slot.style.height=(1760*s)+'px';
+}
+function mount(){
+  var dev=document.getElementById('device'); if(dev) dev.classList.add('lamp');
+  renderHome(); renderCut(); renderSwatch(); renderColorGrid(); renderPanel('idle'); buildQR();
+  var pins=document.querySelectorAll('.pin');
+  for(var i=0;i<pins.length;i++){
+    pins[i].addEventListener('click',function(e){ e.stopPropagation(); this.classList.toggle('pinopen'); });
+  }
+  document.addEventListener('click',function(){ 
+    document.querySelectorAll('.pin.pinopen').forEach(function(p){ p.classList.remove('pinopen'); });
+  });
+}
+window.addEventListener('resize',fit);
+window.addEventListener('load',fit);
+mount();
+tickClock(); setInterval(tickClock,20000);
+go('idle');
+fit();
+</script>
+</body>
+</html>
